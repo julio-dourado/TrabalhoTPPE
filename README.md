@@ -62,3 +62,7 @@
 | E03   | FT05    | US18 | Eu, como usuário, gostaria de visualizar os detalhes de um treino com todos os exercícios listados.          |
 
 ---
+
+## Diagrama UML
+
+![Diagrama UML](./Assets/UMLDark.svg)
