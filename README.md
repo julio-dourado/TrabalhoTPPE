@@ -66,3 +66,7 @@
 ## Diagrama UML
 
 ![Diagrama UML](./Assets/UML.svg)
+
+## Diagrama Banco de dados
+
+![Diagrama UML](./Assets/banco.png)
