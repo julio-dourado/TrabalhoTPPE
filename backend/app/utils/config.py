@@ -16,5 +16,5 @@ class Settings:
 settings = Settings()
 
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgres://appuser:secret@db:5432/appdb")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgres://appuser:secret@db:2543/appdb")
 
