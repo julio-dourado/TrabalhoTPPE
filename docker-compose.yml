@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    container_name: postgres_db
+    restart: always
+    ports:
+      - '5432:5432' # Mapear a porta para o host local
+    environment:
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: appdb
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./postgres/pg_hba.conf:/var/lib/postgresql/data/pg_hba.conf
+      - ./postgres/postgresql.conf:/var/lib/postgresql/data/postgresql.conf
+      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql # Arquivo de inicialização
+    command: postgres -c config_file=/var/lib/postgresql/data/postgresql.conf
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U appuser -d appdb']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: on-failure
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://appuser:secret@db:5432/appdb
+    ports:
+      - '8000:8000'
+    volumes:
+      - ./backend:/usr/src/app
+    command: sh -c "sleep 5 && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+volumes:
+  db-data:
