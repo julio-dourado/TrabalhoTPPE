@@ -65,4 +65,4 @@
 
 ## Diagrama UML
 
-![Diagrama UML](./Assets/UMLDark.svg)
+![Diagrama UML](./Assets/UML.svg)
