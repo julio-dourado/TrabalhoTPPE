@@ -1,7 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from app.models.usuario import Usuario
 import os
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg2://appuser:secret@db:5432/appdb")
