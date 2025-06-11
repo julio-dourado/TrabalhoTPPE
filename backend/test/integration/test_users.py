@@ -1,5 +1,8 @@
+# app/api/v1/routes/users.py
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+
 from app.db.session import get_db
 from app.schemas.user import UserCreate, UserOut
 from app.services.user_service import create_user, get_user_by_email
@@ -9,7 +12,7 @@ from app.api.v1.deps import get_current_user
 router = APIRouter()
 
 
-# --- Rota Pública para CRIAR um usuário ---
+# --- Rota Pública ---
 @router.post(
     "/",
     status_code=status.HTTP_201_CREATED,
@@ -17,6 +20,7 @@ router = APIRouter()
     response_model=UserOut,
 )
 def create_user_route(user: UserCreate, db: Session = Depends(get_db)):
+
     db_user = get_user_by_email(db=db, email=user.email)
     if db_user:
         raise HTTPException(

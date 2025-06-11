@@ -14,12 +14,11 @@ router = APIRouter()
 @router.post("/token", response_model=Token, summary="Gera um token de acesso")
 def login_for_access_token(
     db: Session = Depends(get_db),
-
     form_data: OAuth2PasswordRequestForm = Depends()
 ):
 
     user = authenticate_user(
-        db, email=form_data.username, password=form_data.password
+        db=db, email=form_data.username, password=form_data.password
     )
 
     if not user:

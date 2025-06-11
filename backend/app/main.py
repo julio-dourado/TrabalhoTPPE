@@ -1,26 +1,37 @@
 from fastapi import FastAPI
-from app.api.v1.routes import users 
-from app.db.session import init_db  
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from app.db.session import Base
+from app.api.v1.routes import users, auth
 
-app = FastAPI()
+app = FastAPI(
+    title="Minha API de Treinos",
+    description="API para gerenciar usuários e seus treinos.",
+    version="0.1.0",
+    swagger_ui_parameters={"syntaxHighlight.theme": "obsidian"},
+    openapi_spec_args={
+        "components": {
+            "securitySchemes": {
+                "bearerAuth": {
+                    "type": "http",
+                    "scheme": "bearer",
+                    "bearerFormat": "JWT",
+                    "description": "Insira o token JWT com o prefixo 'Bearer '",
+                }
+            }
+        },
+        "security": [{"bearerAuth": []}],
+    },
+)
 
-DATABASE_URL = "postgresql://appuser:secret@db:5432/appdb"
+app.include_router(
+    auth.router, 
+    prefix="/api/v1/auth", 
+    tags=["Authentication"]
+)
+app.include_router(
+    users.router, 
+    prefix="/api/v1/users", 
+    tags=["Users"]
+)
 
-# Conectar ao banco de dados
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-def init_db():
-    Base.metadata.create_all(bind=engine)
-
-@app.on_event("startup")
-def on_startup():
-    init_db()
-
-app.include_router(users.router)
 
 @app.get("/")
 def read_root():
