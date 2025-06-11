@@ -1,6 +1,6 @@
 # backend/app/models/user.py
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from sqlalchemy import Column, Integer, String
 from app.db.db import Base
 
@@ -13,7 +13,7 @@ class User(Base):
     senha_hash = Column(String)
 
 class UserCreate(BaseModel):
-    nome: str = Field(..., min_length=1)
+    nome: str = Field(..., min_length=2, max_length=255)
     email: EmailStr
     senha: str = Field(..., min_length=6)
 
@@ -21,5 +21,7 @@ class UserOut(BaseModel):
     id: int
     nome: str
     email: str
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(
+        from_attributes=True,  # Habilita o modo ORM
+        extra="ignore"  # Ignora campos extras
+    )
