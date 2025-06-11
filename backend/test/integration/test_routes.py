@@ -4,8 +4,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.main import app
-from app.db.db import SessionLocal, get_db
-from app.models.user import User, UserOut
+from app.db.session import SessionLocal, get_db
+from app.models.user import User 
+from app.schemas.user import UserOut
 
 
 @pytest.fixture(scope="function")

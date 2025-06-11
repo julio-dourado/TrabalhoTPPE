@@ -1,3 +1,5 @@
+# docker-compose.yml
+
 version: '3.8'
 
 services:
@@ -13,18 +15,23 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - db-data:/var/lib/postgresql/data
-      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./backend/migrations/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./docker/postgres/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
       interval: 5s
       timeout: 5s
       retries: 5
 
+  # Serviço para rodar a APLICAÇÃO (servidor web)
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    restart: on-failure
+    container_name: backend_app # Nome mais claro
+    restart: always # 'always' é melhor para desenvolvimento
+    ports:
+      - '8000:8000' # Expõe a porta da API
     depends_on:
       db:
         condition: service_healthy
@@ -33,7 +40,28 @@ services:
       PYTHONPATH: /usr/src/app
     volumes:
       - ./backend:/usr/src/app
-    command: pytest /usr/src/app/app/test -v
+    # Comando para INICIAR O SERVIDOR WEB
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    env_file:
+      - .env
+
+  # Serviço para rodar os TESTES
+  backend-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend_test # Nome mais claro
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # O DATABASE_URL aqui deve apontar para um banco de TESTE
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}_test
+      PYTHONPATH: /usr/src/app
+    volumes:
+      - ./backend:/usr/src/app
+    # Comando para RODAR OS TESTES
+    command: pytest /usr/src/app/test -v
     env_file:
       - .env
 

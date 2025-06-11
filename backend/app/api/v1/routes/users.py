@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
-from app.services.user import create_user
-from app.db.db import get_db
-from app.models.user import UserCreate, UserOut
+from app.services.user_service import create_user
+from app.db.session import get_db
+from app.schemas.user import UserCreate, UserOut
 
 router = APIRouter()
 
@@ -27,23 +27,3 @@ def create_user_route(user: UserCreate, db: Session = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro interno no servidor: {str(e)}"
         )
-    
-@router.get(
-    "/user/{user_id}",
-    response_model=UserOut,
-    status_code=status.HTTP_200_OK,
-    responses={
-        200: {"description": "Usuário encontrado"},
-        404: {"description": "Usuário não encontrado"}
-    }
-)
-def get_user_route(user_id: int, db: Session = Depends(get_db)):
-    user = db.query(UserOut).filter(UserOut.id == user_id).first()
-    
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Usuário não encontrado"
-        )
-    
-    return user

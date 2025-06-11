@@ -1,10 +1,9 @@
-# tests/unit/test_user.py
 import pytest
 from fastapi import HTTPException
-from app.services.user import create_user
-from app.models.user import UserCreate
+from app.services.user_service import create_user
+from app.schemas.user import UserCreate
 
-# Dummy SQLAlchemy-like user só para “retornar algo” no mock
+
 class DummyUser:
     def __init__(self, email): 
         self.email = email

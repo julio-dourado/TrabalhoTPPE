@@ -1,9 +1,9 @@
 from fastapi import FastAPI
-from app.routes import user 
-from app.db.db import init_db  
+from app.api.v1.routes import users 
+from app.db.session import init_db  
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from app.db.db import Base
+from app.db.session import Base
 
 app = FastAPI()
 
@@ -20,7 +20,7 @@ def init_db():
 def on_startup():
     init_db()
 
-app.include_router(user.router)
+app.include_router(users.router)
 
 @app.get("/")
 def read_root():
