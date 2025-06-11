@@ -1,8 +1,8 @@
-from fastapi import HTTPException, status, Depends
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from app.models.user import User
 from app.schemas.user import UserCreate
-from app.security.security import get_senha_hash, verify_senha
+from app.security.password import get_senha_hash, verify_senha
 from typing import Optional
 
 def create_user(user: UserCreate, db: Session) -> User:

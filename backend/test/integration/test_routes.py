@@ -47,7 +47,7 @@ def client_with_db(db_session: Session):
 ])
 
 def test_create_user_integration(user_data, expected_status_code, client_with_db: TestClient, db_session: Session):
-    response = client_with_db.post("/user/", json=user_data)
+    response = client_with_db.post("/", json=user_data)
     assert response.status_code == expected_status_code
 
     if expected_status_code == 201:
@@ -64,16 +64,16 @@ def test_create_user_integration(user_data, expected_status_code, client_with_db
 def test_create_user_with_duplicate_email_fails(client_with_db: TestClient):
     user_data = {"nome": "John Doe", "email": "john.doe@unique.com", "senha": "a_strong_password"}
 
-    response1 = client_with_db.post("/user/", json=user_data)
+    response1 = client_with_db.post("/", json=user_data)
     assert response1.status_code == 201, "A criação inicial do usuário falhou"
 
     user_data2 = {"nome": "Jane Doe", "email": "john.doe@unique.com", "senha": "another_password"}
-    response2 = client_with_db.post("/user/", json=user_data2)
+    response2 = client_with_db.post("/", json=user_data2)
     
     assert response2.status_code == 400, "A API não retornou 400 para e-mail duplicado"
     
     error_details = response2.json()
-    assert error_details["detail"] == "Email já cadastrado"
+    assert error_details["detail"] == "Um usuário com este e-mail já existe."
 
 
 

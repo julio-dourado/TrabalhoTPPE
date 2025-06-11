@@ -11,3 +11,6 @@ pytest>=8.0.0
 pydantic>=2.7.0
 bcrypt>=4.1.0
 pydantic[email]
+jose
+pydantic_settings
+passlib

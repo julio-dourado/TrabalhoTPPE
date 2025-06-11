@@ -1,20 +1,14 @@
-from dotenv import load_dotenv
-import os
+# app/core/config.py
+from pydantic_settings import BaseSettings
 
-load_dotenv()
+class Settings(BaseSettings):
 
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
+    DATABASE_URL: str
+    SECRET_KEY: str
 
-# JWT settings
-class Settings:
-    SECRET_KEY = os.getenv("SECRET_KEY")
-    ALGORITHM = os.getenv("ALGORITHM")
-    ACCESS_TOKEN_EXPIRE_MINUTES = os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES")
-
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    
+    class Config:
+        env_file = ".env"
 settings = Settings()
-
-
-DATABASE_URL = os.getenv("DATABASE_URL", "postgres://appuser:secret@db:2543/appdb")
-
