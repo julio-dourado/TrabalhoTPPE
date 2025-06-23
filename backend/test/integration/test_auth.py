@@ -52,4 +52,4 @@ def test_access_protected_route_without_token_fails(client_with_db: TestClient):
     headers = {"Authorization": "Bearer token_falso_e_invalido"}
     response = client_with_db.get("/api/v1/users/me/", headers=headers)
     assert response.status_code == 401
-    assert response.json()["detail"] == "Não foi possível validar as credenciais"
+    assert response.json()["detail"] == "Could not validate credentials"

@@ -9,7 +9,7 @@ from app.api.v1.deps import get_current_user
 router = APIRouter()
 
 
-# --- Rota Pública para CRIAR um usuário ---
+# --- ROTAS PÚBLICAS ---
 @router.post(
     "/",
     status_code=status.HTTP_201_CREATED,
@@ -34,3 +34,52 @@ def create_user_route(user: UserCreate, db: Session = Depends(get_db)):
 )
 def read_users_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+@router.put(
+    "/me/",
+    response_model=UserOut,
+    summary="Atualiza os dados do usuário autenticado"
+)
+def update_user_me(
+    user: UserCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    db_user = get_user_by_email(db=db, email=current_user.email)
+    if not db_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado."
+        )
+    
+    db_user.nome = user.nome
+    db_user.email = user.email
+    if user.senha:
+        db_user.set_password(user.senha)
+    
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    
+    return db_user
+
+@router.delete(
+    "/me/",
+    summary="Deleta o usuário autenticado",
+    status_code=status.HTTP_204_NO_CONTENT
+)
+def delete_user_me(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    db_user = get_user_by_email(db=db, email=current_user.email)
+    if not db_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado."
+        )
+    
+    db.delete(db_user)
+    db.commit()
+    
+    return {"detail": "Usuário deletado com sucesso."}
