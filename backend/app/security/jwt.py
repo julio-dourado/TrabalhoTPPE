@@ -1,14 +1,10 @@
-# app/security/jwt.py
-"""
-Módulo dedicado à criação e decodificação de tokens JWT.
-"""
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from jose import JWTError, jwt
 
 from app.core.config import settings
-from app.schemas.user import TokenData
+from app.schemas.auth import TokenData
 
 
 def create_access_token(data: dict) -> str:

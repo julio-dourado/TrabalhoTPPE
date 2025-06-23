@@ -21,14 +21,3 @@ class UserOut(UserBase):
     model_config = ConfigDict(
         from_attributes=True,
     )
-
-# JWT Token Schemas
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-
-
-class TokenData(BaseModel):
-    user_id: Optional[int] = None

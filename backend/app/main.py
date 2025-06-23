@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.api.v1.routes import users, auth
+from app.api.v1.routes import users, auth, treino
 
 app = FastAPI(
     title="Minha API de Treinos",
@@ -21,6 +21,10 @@ app = FastAPI(
     },
 )
 
+@app.get("/")
+def read_root():
+    return {"message": "Bem-vindo ao sistema!"}
+
 app.include_router(
     auth.router, 
     prefix="/api/v1/auth", 
@@ -31,8 +35,8 @@ app.include_router(
     prefix="/api/v1/users", 
     tags=["Users"]
 )
-
-
-@app.get("/")
-def read_root():
-    return {"message": "Bem-vindo ao sistema!"}
+app.include_router(
+    treino.router,
+    prefix="/api/v1/treinos",
+    tags=["Treinos"]
+)
