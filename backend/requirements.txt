@@ -14,3 +14,4 @@ pydantic[email]
 jose
 pydantic_settings
 passlib
+sqlmodel
