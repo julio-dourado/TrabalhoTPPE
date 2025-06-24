@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.schemas.user import UserCreate, UserOut
-from app.services.user_service import create_user, get_user_by_email
-from app.models.user import User
+from app.schemas.user import UserCreate, UserOut, UserUpdate
+from app.services import user_service # Importa o serviço de usuário
+from app.models.user import User as SQLAlchemyUser
 from app.api.v1.deps import get_current_user
-from app.security.password import get_senha_hash
+from app.security.password import get_senha_hash # Usado para hashing na rota de update, se aplicável
 
 router = APIRouter()
-
 
 # --- ROTAS PÚBLICAS ---
 @router.post(
@@ -18,14 +17,7 @@ router = APIRouter()
     response_model=UserOut,
 )
 def create_user_route(user: UserCreate, db: Session = Depends(get_db)):
-    db_user = get_user_by_email(db=db, email=user.email)
-    if db_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Um usuário com este e-mail já existe.",
-        )
-    return create_user(db=db, user=user)
-
+    return user_service.create_user(db=db, user=user)
 
 # --- ROTAS PROTEGIDAS ---
 @router.get(
@@ -33,7 +25,7 @@ def create_user_route(user: UserCreate, db: Session = Depends(get_db)):
     response_model=UserOut,
     summary="Obtém os dados do usuário autenticado"
 )
-def read_users_me(current_user: User = Depends(get_current_user)):
+def read_users_me(current_user: SQLAlchemyUser = Depends(get_current_user)):
     return current_user
 
 @router.put(
@@ -41,18 +33,13 @@ def read_users_me(current_user: User = Depends(get_current_user)):
     response_model=UserOut,
     summary="Atualiza os dados do usuário autenticado"
 )
-
-@router.put(
-    "/me/",
-    response_model=UserOut,
-    summary="Atualiza os dados do usuário autenticado"
-)
 def update_user_me(
-    user: UserCreate,
-    current_user: User = Depends(get_current_user),
+    user_update: UserUpdate, # Renomeado para evitar conflito com UserCreate
+    current_user: SQLAlchemyUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    db_user = db.query(User).filter(User.id == current_user.id).first()
+    # Obtém o usuário do DB
+    db_user = user_service.get_user_by_email(db=db, email=current_user.email)
     
     if not db_user:
         raise HTTPException(
@@ -60,25 +47,16 @@ def update_user_me(
             detail="Usuário autenticado não encontrado no banco de dados."
         )
 
-    if user.email.lower() != db_user.email.lower():
-        existing_email_user = get_user_by_email(db=db, email=user.email.lower())
-        if existing_email_user:
+    # Verifica se o novo e-mail já existe e não pertence ao usuário atual
+    if user_update.email is not None and user_update.email.lower() != db_user.email.lower():
+        existing_email_user = user_service.get_user_by_email(db=db, email=user_update.email.lower())
+        if existing_email_user and existing_email_user.id != db_user.id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Um usuário com este novo e-mail já existe.",
             )
 
-    db_user.nome = user.nome
-    db_user.email = user.email.lower()
-
-    if user.senha:
-        db_user.senha_hash = get_senha_hash(user.senha)
-                                        
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    
-    return db_user
+    return user_service.update_user(db=db, db_user=db_user, user_update=user_update)
 
 @router.delete(
     "/me/",
@@ -86,17 +64,16 @@ def update_user_me(
     status_code=status.HTTP_204_NO_CONTENT
 )
 def delete_user_me(
-    current_user: User = Depends(get_current_user),
+    current_user: SQLAlchemyUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    db_user = get_user_by_email(db=db, email=current_user.email)
+    db_user = user_service.get_user_by_email(db=db, email=current_user.email)
     if not db_user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Usuário não encontrado."
         )
     
-    db.delete(db_user)
-    db.commit()
-    
-    return {"detail": "Usuário deletado com sucesso."}
+    user_service.delete_user(db=db, db_user=db_user)
+    return # Retorna 204 No Content
+
