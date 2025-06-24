@@ -14,10 +14,10 @@ TEST_USER_NAME = "Test User"
 
 def create_test_user_in_db(db: Session):
     user_data = UserCreate(nome=TEST_USER_NAME, email=TEST_USER_EMAIL, senha=TEST_USER_PASSWORD)
-    return service_create_user(user_data, db)
+    return service_create_user(db, user_data)
 
 def get_auth_headers(user_id: int): 
-    access_token = create_access_token(data={"user_id": user_id})
+    access_token = create_access_token(data={"id": user_id})
     return {"Authorization": f"Bearer {access_token}"}
 
 def test_create_user_success(client_with_db: TestClient):
