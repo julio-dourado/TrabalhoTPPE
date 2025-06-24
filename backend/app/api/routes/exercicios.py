@@ -34,19 +34,19 @@ def create_exercise_route(
     summary="Lista todos os exercícios"
 )
 def get_exercises_route(
-    tipo: Optional[str] = Query(None, description="Filtrar por tipo: ComPeso ou SemPeso"),
+    tipo: Optional[str] = Query(None, description="Filtrar por tipo: COM_PESO ou SEM_PESO"),
     db: Session = Depends(get_db)
 ):
     """
     Lista todos os exercícios ou filtra por tipo específico.
     
-    - **tipo**: Opcional. Se fornecido, filtra exercícios por tipo ('ComPeso' ou 'SemPeso')
+    - **tipo**: Opcional. Se fornecido, filtra exercícios por tipo ('COM_PESO' ou 'SEM_PESO')
     """
     if tipo:
-        if tipo not in ["ComPeso", "SemPeso"]:
+        if tipo not in ["COM_PESO", "SEM_PESO"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Tipo deve ser 'ComPeso' ou 'SemPeso'"
+                detail="Tipo deve ser 'COM_PESO' ou 'SEM_PESO'"
             )
         return exercise_service.get_exercises_by_type(db=db, tipo_exercicio=tipo)
     
@@ -133,10 +133,10 @@ def delete_exercise_route(
 )
 def get_weight_exercises_route(db: Session = Depends(get_db)):
     """
-    Lista apenas exercícios do tipo 'ComPeso'.
+    Lista apenas exercícios do tipo 'COM_PESO'.
     Útil para interfaces específicas de exercícios com peso.
     """
-    return exercise_service.get_exercises_by_type(db=db, tipo_exercicio="ComPeso")
+    return exercise_service.get_exercises_by_type(db=db, tipo_exercicio="COM_PESO")
 
 
 @router.get(
@@ -146,7 +146,7 @@ def get_weight_exercises_route(db: Session = Depends(get_db)):
 )
 def get_cardio_exercises_route(db: Session = Depends(get_db)):
     """
-    Lista apenas exercícios do tipo 'SemPeso'.
+    Lista apenas exercícios do tipo 'SEM_PESO'.
     Útil para interfaces específicas de exercícios cardio.
     """
-    return exercise_service.get_exercises_by_type(db=db, tipo_exercicio="SemPeso") 
+    return exercise_service.get_exercises_by_type(db=db, tipo_exercicio="SEM_PESO") 
