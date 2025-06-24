@@ -34,8 +34,8 @@ def test_create_user(user_data, should_succeed):
     user_create = UserCreate(**user_data)
 
     if should_succeed:
-        u = create_user(user_create, db)
+        u = create_user(db, user_create)
         assert u.email == user_data["email"]
     else:
         with pytest.raises(HTTPException):
-            create_user(user_create, db)
+            create_user(db, user_create)
