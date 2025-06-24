@@ -1,8 +1,9 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select
+from datetime import datetime
 
-from app.models.exercise import Exercicio, ComPeso, SemPeso
+from app.models.exercise import Exercicio, ComPeso, SemPeso, TipoExercicio
 from app.models.training import Treino
 from app.schemas.exercise import ExercicioCreate, ExercicioUpdate, ExercicioOut, ComPesoOut, SemPesoOut
 
@@ -11,29 +12,37 @@ def _convert_exercicio_model_to_out_schema(exercicio_model: Exercicio) -> Exerci
     com_peso_out = None
     sem_peso_out = None
     
-    if exercicio_model.tipo_exercicio == "ComPeso" and exercicio_model.com_peso_details:
+    if exercicio_model.tipo_exercicio == TipoExercicio.COM_PESO and exercicio_model.com_peso_details:
         com_peso_out = ComPesoOut.model_validate(exercicio_model.com_peso_details)
-    elif exercicio_model.tipo_exercicio == "SemPeso" and exercicio_model.sem_peso_details:
+    elif exercicio_model.tipo_exercicio == TipoExercicio.SEM_PESO and exercicio_model.sem_peso_details:
         sem_peso_out = SemPesoOut.model_validate(exercicio_model.sem_peso_details)
     
     return ExercicioOut(
         id=exercicio_model.id,
         nome=exercicio_model.nome,
+        grupo_muscular=exercicio_model.grupo_muscular,
+        dificuldade=exercicio_model.dificuldade,
         serie=exercicio_model.serie,
         repeticoes=exercicio_model.repeticoes,
         comentario=exercicio_model.comentario,
+        instrucoes=exercicio_model.instrucoes,
+        tempo_descanso_seg=exercicio_model.tempo_descanso_seg,
+        is_composto=exercicio_model.is_composto,
+        equipamento=exercicio_model.equipamento,
         tipo_exercicio=exercicio_model.tipo_exercicio,
         com_peso_details=com_peso_out,
-        sem_peso_details=sem_peso_out
+        sem_peso_details=sem_peso_out,
+        created_at=exercicio_model.created_at,
+        updated_at=exercicio_model.updated_at
     )
 
 def _create_exercise_details_in_db(db: Session, exercise_obj: Exercicio, exercicio_schema: ExercicioCreate):
     """Cria detalhes específicos do exercício (com peso ou sem peso)"""
-    if exercicio_schema.tipo_exercicio == "ComPeso" and exercicio_schema.com_peso_details:
+    if exercicio_schema.tipo_exercicio == TipoExercicio.COM_PESO and exercicio_schema.com_peso_details:
         com_peso = ComPeso(exercicio_id=exercise_obj.id, **exercicio_schema.com_peso_details.model_dump())
         db.add(com_peso)
         db.flush()
-    elif exercicio_schema.tipo_exercicio == "SemPeso" and exercicio_schema.sem_peso_details:
+    elif exercicio_schema.tipo_exercicio == TipoExercicio.SEM_PESO and exercicio_schema.sem_peso_details:
         sem_peso = SemPeso(exercicio_id=exercise_obj.id, **exercicio_schema.sem_peso_details.model_dump())
         db.add(sem_peso)
         db.flush()
@@ -45,10 +54,17 @@ def create_exercise(db: Session, exercicio_data: ExercicioCreate) -> ExercicioOu
     # Cria o exercício base
     db_exercicio = Exercicio(
         nome=exercicio_data.nome,
+        grupo_muscular=exercicio_data.grupo_muscular,
+        dificuldade=exercicio_data.dificuldade,
         serie=exercicio_data.serie,
         repeticoes=exercicio_data.repeticoes,
         comentario=exercicio_data.comentario,
-        tipo_exercicio=exercicio_data.tipo_exercicio
+        instrucoes=exercicio_data.instrucoes,
+        tempo_descanso_seg=exercicio_data.tempo_descanso_seg,
+        is_composto=exercicio_data.is_composto,
+        equipamento=exercicio_data.equipamento,
+        tipo_exercicio=exercicio_data.tipo_exercicio,
+        created_at=datetime.utcnow()
     )
     db.add(db_exercicio)
     db.flush()
@@ -81,14 +97,16 @@ def get_exercise_by_id(db: Session, exercise_id: int) -> Optional[ExercicioOut]:
 
 def get_exercises_by_type(db: Session, tipo_exercicio: str) -> List[ExercicioOut]:
     """
-    Lista exercícios por tipo (ComPeso ou SemPeso)
+    Lista exercícios por tipo (COM_PESO ou SEM_PESO)
     """
-    if tipo_exercicio not in ["ComPeso", "SemPeso"]:
+    if tipo_exercicio not in ["COM_PESO", "SEM_PESO"]:
         return []
+    
+    tipo_enum = TipoExercicio.COM_PESO if tipo_exercicio == "COM_PESO" else TipoExercicio.SEM_PESO
     
     exercicios = db.execute(
         select(Exercicio)
-        .where(Exercicio.tipo_exercicio == tipo_exercicio)
+        .where(Exercicio.tipo_exercicio == tipo_enum)
         .options(
             selectinload(Exercicio.com_peso_details),
             selectinload(Exercicio.sem_peso_details)
@@ -128,20 +146,17 @@ def update_exercise(db: Session, exercise_id: int, exercicio_data: ExercicioUpda
         return None
 
     # Atualiza campos básicos se fornecidos
-    if exercicio_data.nome is not None:
-        exercicio.nome = exercicio_data.nome
-    if exercicio_data.serie is not None:
-        exercicio.serie = exercicio_data.serie
-    if exercicio_data.repeticoes is not None:
-        exercicio.repeticoes = exercicio_data.repeticoes
-    if exercicio_data.comentario is not None:
-        exercicio.comentario = exercicio_data.comentario
+    update_fields = exercicio_data.model_dump(exclude_unset=True, exclude={'com_peso_details', 'sem_peso_details'})
+    for field, value in update_fields.items():
+        setattr(exercicio, field, value)
+    
+    exercicio.updated_at = datetime.utcnow()
 
     # Atualiza detalhes específicos baseado no tipo
-    if exercicio.tipo_exercicio == "ComPeso" and exercicio_data.com_peso_details is not None and exercicio.com_peso_details:
+    if exercicio.tipo_exercicio == TipoExercicio.COM_PESO and exercicio_data.com_peso_details is not None and exercicio.com_peso_details:
         for field, value in exercicio_data.com_peso_details.model_dump(exclude_unset=True).items():
             setattr(exercicio.com_peso_details, field, value)
-    elif exercicio.tipo_exercicio == "SemPeso" and exercicio_data.sem_peso_details is not None and exercicio.sem_peso_details:
+    elif exercicio.tipo_exercicio == TipoExercicio.SEM_PESO and exercicio_data.sem_peso_details is not None and exercicio.sem_peso_details:
         for field, value in exercicio_data.sem_peso_details.model_dump(exclude_unset=True).items():
             setattr(exercicio.sem_peso_details, field, value)
 
