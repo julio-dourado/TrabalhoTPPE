@@ -185,7 +185,6 @@ def test_delete_user_me_not_found_after_deletion(client_with_db: TestClient, db_
 
 def test_create_training_with_weight_exercises(client_with_db: TestClient, db_session: Session):
     """
-    US07: Eu, como usuário, gostaria de criar um treino com exercícios personalizados.
     US11: Eu, como usuário, gostaria de criar exercícios com peso, informando nome, músculo, repetições, sets e carga.
     """
     user_data = {
@@ -208,12 +207,20 @@ def test_create_training_with_weight_exercises(client_with_db: TestClient, db_se
         "exercicios": [
             {
                 "nome": "Supino",
+                "grupo_muscular": "PEITO",
+                "dificuldade": "INICIANTE",
                 "serie": 4,
                 "repeticoes": 8,
                 "comentario": "Teste",
-                "tipo_exercicio": "ComPeso",
+                "instrucoes": "Deite no banco",
+                "tempo_descanso_seg": 90,
+                "is_composto": True,
+                "equipamento": "Barra",
+                "tipo_exercicio": "COM_PESO",
                 "com_peso_details": {
-                    "peso": 80.0
+                    "peso_kg": 80.0,
+                    "peso_maximo_kg": 100.0,
+                    "incremento_sugerido_kg": 2.5
                 }
             }
         ]
@@ -226,8 +233,8 @@ def test_create_training_with_weight_exercises(client_with_db: TestClient, db_se
     assert data["nome"] == "Treino Teste"
     assert len(data["exercicios"]) == 1
     assert data["exercicios"][0]["nome"] == "Supino"
-    assert data["exercicios"][0]["tipo_exercicio"] == "ComPeso"
-    assert data["exercicios"][0]["com_peso_details"]["peso"] == 80.0
+    assert data["exercicios"][0]["tipo_exercicio"] == "COM_PESO"
+    assert data["exercicios"][0]["com_peso_details"]["peso_kg"] == 80.0
 
 def test_create_training_with_cardio_exercises(client_with_db: TestClient, db_session: Session):
     """
@@ -253,14 +260,21 @@ def test_create_training_with_cardio_exercises(client_with_db: TestClient, db_se
         "exercicios": [
             {
                 "nome": "Corrida",
+                "grupo_muscular": "CARDIO",
+                "dificuldade": "INTERMEDIARIO",
                 "serie": 1,
                 "repeticoes": 1,
                 "comentario": "Cardio",
-                "tipo_exercicio": "SemPeso",
+                "instrucoes": "Mantenha ritmo constante",
+                "tempo_descanso_seg": 0,
+                "is_composto": False,
+                "equipamento": "Esteira",
+                "tipo_exercicio": "SEM_PESO",
                 "sem_peso_details": {
                     "tempo_seg": 1800.0,
                     "distancia_m": 5000.0,
-                    "meta_velocidade": 2.8
+                    "calorias_estimadas": 300.0,
+                    "intensidade": "moderada"
                 }
             }
         ]
@@ -273,7 +287,7 @@ def test_create_training_with_cardio_exercises(client_with_db: TestClient, db_se
     assert data["nome"] == "Treino Cardio"
     assert len(data["exercicios"]) == 1
     assert data["exercicios"][0]["nome"] == "Corrida"
-    assert data["exercicios"][0]["tipo_exercicio"] == "SemPeso"
+    assert data["exercicios"][0]["tipo_exercicio"] == "SEM_PESO"
     assert data["exercicios"][0]["sem_peso_details"]["tempo_seg"] == 1800.0
 
 def test_get_user_trainings(client_with_db: TestClient, db_session: Session):
@@ -301,14 +315,21 @@ def test_get_user_trainings(client_with_db: TestClient, db_session: Session):
         "exercicios": [
             {
                 "nome": "Flexão",
+                "grupo_muscular": "PEITO",
+                "dificuldade": "INICIANTE",
                 "serie": 3,
                 "repeticoes": 10,
                 "comentario": "Exercício básico",
-                "tipo_exercicio": "SemPeso",
+                "instrucoes": "Mantenha a forma",
+                "tempo_descanso_seg": 60,
+                "is_composto": False,
+                "equipamento": "Corpo",
+                "tipo_exercicio": "SEM_PESO",
                 "sem_peso_details": {
                     "tempo_seg": 300.0,
                     "distancia_m": 0.0,
-                    "meta_velocidade": 1.0
+                    "calorias_estimadas": 50.0,
+                    "intensidade": "moderada"
                 }
             }
         ]
@@ -348,12 +369,20 @@ def test_get_specific_training_details(client_with_db: TestClient, db_session: S
         "exercicios": [
             {
                 "nome": "Supino",
+                "grupo_muscular": "PEITO",
+                "dificuldade": "INICIANTE",
                 "serie": 4,
                 "repeticoes": 8,
                 "comentario": "Teste",
-                "tipo_exercicio": "ComPeso",
+                "instrucoes": "Deite no banco",
+                "tempo_descanso_seg": 90,
+                "is_composto": True,
+                "equipamento": "Barra",
+                "tipo_exercicio": "COM_PESO",
                 "com_peso_details": {
-                    "peso": 80.0
+                    "peso_kg": 80.0,
+                    "peso_maximo_kg": 100.0,
+                    "incremento_sugerido_kg": 2.5
                 }
             }
         ]
@@ -395,14 +424,21 @@ def test_update_training(client_with_db: TestClient, db_session: Session):
         "exercicios": [
             {
                 "nome": "Flexão",
+                "grupo_muscular": "PEITO",
+                "dificuldade": "INICIANTE",
                 "serie": 3,
                 "repeticoes": 10,
                 "comentario": "Exercício básico",
-                "tipo_exercicio": "SemPeso",
+                "instrucoes": "Mantenha a forma",
+                "tempo_descanso_seg": 60,
+                "is_composto": False,
+                "equipamento": "Corpo",
+                "tipo_exercicio": "SEM_PESO",
                 "sem_peso_details": {
                     "tempo_seg": 300.0,
                     "distancia_m": 0.0,
-                    "meta_velocidade": 1.0
+                    "calorias_estimadas": 50.0,
+                    "intensidade": "moderada"
                 }
             }
         ]
@@ -442,14 +478,21 @@ def test_delete_training(client_with_db: TestClient, db_session: Session):
         "exercicios": [
             {
                 "nome": "Flexão",
+                "grupo_muscular": "PEITO",
+                "dificuldade": "INICIANTE",
                 "serie": 3,
                 "repeticoes": 10,
                 "comentario": "Exercício básico",
-                "tipo_exercicio": "SemPeso",
+                "instrucoes": "Mantenha a forma",
+                "tempo_descanso_seg": 60,
+                "is_composto": False,
+                "equipamento": "Corpo",
+                "tipo_exercicio": "SEM_PESO",
                 "sem_peso_details": {
                     "tempo_seg": 300.0,
                     "distancia_m": 0.0,
-                    "meta_velocidade": 1.0
+                    "calorias_estimadas": 50.0,
+                    "intensidade": "moderada"
                 }
             }
         ]
@@ -471,14 +514,21 @@ def test_create_training_unauthorized(client_with_db: TestClient, db_session: Se
         "exercicios": [
             {
                 "nome": "Flexão",
+                "grupo_muscular": "PEITO",
+                "dificuldade": "INICIANTE",
                 "serie": 3,
                 "repeticoes": 10,
                 "comentario": "Exercício básico",
-                "tipo_exercicio": "SemPeso",
+                "instrucoes": "Mantenha a forma",
+                "tempo_descanso_seg": 60,
+                "is_composto": False,
+                "equipamento": "Corpo",
+                "tipo_exercicio": "SEM_PESO",
                 "sem_peso_details": {
                     "tempo_seg": 300.0,
                     "distancia_m": 0.0,
-                    "meta_velocidade": 1.0
+                    "calorias_estimadas": 50.0,
+                    "intensidade": "moderada"
                 }
             }
         ]
@@ -524,14 +574,21 @@ def test_access_other_user_training_fails(client_with_db: TestClient, db_session
         "exercicios": [
             {
                 "nome": "Flexão",
+                "grupo_muscular": "PEITO",
+                "dificuldade": "INICIANTE",
                 "serie": 3,
                 "repeticoes": 10,
                 "comentario": "Exercício básico",
-                "tipo_exercicio": "SemPeso",
+                "instrucoes": "Mantenha a forma",
+                "tempo_descanso_seg": 60,
+                "is_composto": False,
+                "equipamento": "Corpo",
+                "tipo_exercicio": "SEM_PESO",
                 "sem_peso_details": {
                     "tempo_seg": 300.0,
                     "distancia_m": 0.0,
-                    "meta_velocidade": 1.0
+                    "calorias_estimadas": 50.0,
+                    "intensidade": "moderada"
                 }
             }
         ]
@@ -568,11 +625,20 @@ def test_create_training_validation_errors(client_with_db: TestClient, db_sessio
         "exercicios": [
             {
                 "nome": "Supino",
+                "grupo_muscular": "PEITO",
+                "dificuldade": "INICIANTE",
                 "serie": -1,
                 "repeticoes": 0,
-                "tipo_exercicio": "ComPeso",
+                "comentario": "Teste",
+                "instrucoes": "Teste",
+                "tempo_descanso_seg": 60,
+                "is_composto": True,
+                "equipamento": "Barra",
+                "tipo_exercicio": "COM_PESO",
                 "com_peso_details": {
-                    "peso": -10.0
+                    "peso_kg": -10.0,
+                    "peso_maximo_kg": 50.0,
+                    "incremento_sugerido_kg": 2.5
                 }
             }
         ]

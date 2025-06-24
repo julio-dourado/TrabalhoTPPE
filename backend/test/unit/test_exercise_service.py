@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import Mock, patch
 from sqlalchemy.orm import Session
+from datetime import datetime
 from app.services import exercise_service
 from app.models.exercise import Exercicio, ComPeso, SemPeso
 from app.schemas.exercise import ExercicioCreate, ExercicioUpdate, ComPesoCreate, SemPesoCreate
@@ -19,12 +20,22 @@ class TestExerciseService:
         exercicio.serie = 4
         exercicio.repeticoes = 8
         exercicio.comentario = "Teste"
-        exercicio.tipo_exercicio = "ComPeso"
+        exercicio.tipo_exercicio = "COM_PESO"
+        exercicio.grupo_muscular = "PEITO"
+        exercicio.dificuldade = "INTERMEDIARIO"
+        exercicio.instrucoes = "Deite no banco e empurre a barra"
+        exercicio.tempo_descanso_seg = 90
+        exercicio.is_composto = True
+        exercicio.equipamento = "Barra"
+        exercicio.created_at = datetime.now()
+        exercicio.updated_at = datetime.now()
         
         com_peso = Mock(spec=ComPeso)
         com_peso.id = 1
         com_peso.exercicio_id = 1
-        com_peso.peso = 80.0
+        com_peso.peso_kg = 80.0
+        com_peso.peso_maximo_kg = 100.0
+        com_peso.incremento_sugerido_kg = 2.5
         
         exercicio.com_peso_details = com_peso
         exercicio.sem_peso_details = None
@@ -39,7 +50,15 @@ class TestExerciseService:
         exercicio.serie = 1
         exercicio.repeticoes = 1
         exercicio.comentario = "Cardio"
-        exercicio.tipo_exercicio = "SemPeso"
+        exercicio.tipo_exercicio = "SEM_PESO"
+        exercicio.grupo_muscular = "CARDIO"
+        exercicio.dificuldade = "INICIANTE"
+        exercicio.instrucoes = "Corra em ritmo constante"
+        exercicio.tempo_descanso_seg = 60
+        exercicio.is_composto = False
+        exercicio.equipamento = None
+        exercicio.created_at = datetime.now()
+        exercicio.updated_at = datetime.now()
         
         sem_peso = Mock(spec=SemPeso)
         sem_peso.id = 1
@@ -47,6 +66,8 @@ class TestExerciseService:
         sem_peso.tempo_seg = 1800.0
         sem_peso.distancia_m = 5000.0
         sem_peso.meta_velocidade = 2.78
+        sem_peso.calorias_estimadas = 300.0
+        sem_peso.intensidade = "moderada"
         
         exercicio.com_peso_details = None
         exercicio.sem_peso_details = sem_peso
@@ -63,8 +84,12 @@ class TestExerciseService:
             serie=4,
             repeticoes=8,
             comentario="Teste",
-            tipo_exercicio="ComPeso",
-            com_peso_details=ComPesoCreate(peso=80.0)
+            tipo_exercicio="COM_PESO",
+            grupo_muscular="PEITO",
+            dificuldade="INTERMEDIARIO",
+            instrucoes="Deite no banco e empurre a barra",
+            tempo_descanso_seg=90,
+            com_peso_details=ComPesoCreate(peso_kg=80.0)
         )
         
         mock_exercicio_class.return_value = mock_exercicio_com_peso
@@ -92,7 +117,11 @@ class TestExerciseService:
             serie=1,
             repeticoes=1,
             comentario="Cardio",
-            tipo_exercicio="SemPeso",
+            tipo_exercicio="SEM_PESO",
+            grupo_muscular="CARDIO",
+            dificuldade="INICIANTE",
+            instrucoes="Corra em ritmo constante",
+            tempo_descanso_seg=60,
             sem_peso_details=SemPesoCreate(
                 tempo_seg=1800.0,
                 distancia_m=5000.0,
@@ -151,7 +180,7 @@ class TestExerciseService:
         
         mock_convert.return_value = Mock()
         
-        result = exercise_service.get_exercises_by_type(mock_db, "ComPeso")
+        result = exercise_service.get_exercises_by_type(mock_db, "COM_PESO")
         
         assert len(result) == 1
         assert mock_db.execute.called
@@ -166,7 +195,7 @@ class TestExerciseService:
         
         mock_convert.return_value = Mock()
         
-        result = exercise_service.get_exercises_by_type(mock_db, "SemPeso")
+        result = exercise_service.get_exercises_by_type(mock_db, "SEM_PESO")
         
         assert len(result) == 1
         assert mock_db.execute.called
@@ -196,7 +225,7 @@ class TestExerciseService:
         update_data = ExercicioUpdate(
             nome="Supino Atualizado",
             serie=5,
-            com_peso_details={"peso": 90.0}
+            com_peso_details={"peso_kg": 90.0}
         )
         
         mock_result = Mock()
@@ -314,7 +343,7 @@ class TestExerciseService:
         result = exercise_service._convert_exercicio_model_to_out_schema(mock_exercicio_com_peso)
         
         assert result.nome == "Supino"
-        assert result.tipo_exercicio == "ComPeso"
+        assert result.tipo_exercicio == "COM_PESO"
         assert result.com_peso_details is not None
         assert result.sem_peso_details is None
 
@@ -322,7 +351,7 @@ class TestExerciseService:
         result = exercise_service._convert_exercicio_model_to_out_schema(mock_exercicio_sem_peso)
         
         assert result.nome == "Corrida"
-        assert result.tipo_exercicio == "SemPeso"
+        assert result.tipo_exercicio == "SEM_PESO"
         assert result.com_peso_details is None
         assert result.sem_peso_details is not None
 
@@ -335,8 +364,12 @@ class TestExerciseService:
             serie=4,
             repeticoes=8,
             comentario="Teste",
-            tipo_exercicio="ComPeso",
-            com_peso_details=ComPesoCreate(peso=80.0)
+            tipo_exercicio="COM_PESO",
+            grupo_muscular="PEITO",
+            dificuldade="INTERMEDIARIO",
+            instrucoes="Deite no banco e empurre a barra",
+            tempo_descanso_seg=90,
+            com_peso_details=ComPesoCreate(peso_kg=80.0)
         )
         
         mock_db.add = Mock()
@@ -356,7 +389,11 @@ class TestExerciseService:
             serie=1,
             repeticoes=1,
             comentario="Cardio",
-            tipo_exercicio="SemPeso",
+            tipo_exercicio="SEM_PESO",
+            grupo_muscular="CARDIO",
+            dificuldade="INICIANTE",
+            instrucoes="Corra em ritmo constante",
+            tempo_descanso_seg=60,
             sem_peso_details=SemPesoCreate(
                 tempo_seg=1800.0,
                 distancia_m=5000.0,
