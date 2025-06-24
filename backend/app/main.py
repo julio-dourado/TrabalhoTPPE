@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.api.v1.routes import users, auth, treino
+from app.api.routes import users, auth, treino, exercicios
 
 app = FastAPI(
     title="Minha API de Treinos",
@@ -39,4 +39,9 @@ app.include_router(
     treino.router,
     prefix="/api/v1/treinos",
     tags=["Treinos"]
+)
+app.include_router(
+    exercicios.router,
+    prefix="/api/v1",
+    tags=["Exercícios"]
 )

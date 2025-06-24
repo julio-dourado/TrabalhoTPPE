@@ -2,10 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.schemas.user import UserCreate, UserOut, UserUpdate
-from app.services import user_service # Importa o serviço de usuário
+from app.services import user_service
 from app.models.user import User as SQLAlchemyUser
-from app.api.v1.deps import get_current_user
-from app.security.password import get_senha_hash # Usado para hashing na rota de update, se aplicável
+from app.api.deps import get_current_user
+from app.security.password import get_senha_hash
 
 router = APIRouter()
 
@@ -34,11 +34,10 @@ def read_users_me(current_user: SQLAlchemyUser = Depends(get_current_user)):
     summary="Atualiza os dados do usuário autenticado"
 )
 def update_user_me(
-    user_update: UserUpdate, # Renomeado para evitar conflito com UserCreate
+    user_update: UserUpdate,
     current_user: SQLAlchemyUser = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    # Obtém o usuário do DB
     db_user = user_service.get_user_by_email(db=db, email=current_user.email)
     
     if not db_user:
@@ -47,7 +46,6 @@ def update_user_me(
             detail="Usuário autenticado não encontrado no banco de dados."
         )
 
-    # Verifica se o novo e-mail já existe e não pertence ao usuário atual
     if user_update.email is not None and user_update.email.lower() != db_user.email.lower():
         existing_email_user = user_service.get_user_by_email(db=db, email=user_update.email.lower())
         if existing_email_user and existing_email_user.id != db_user.id:
@@ -75,5 +73,5 @@ def delete_user_me(
         )
     
     user_service.delete_user(db=db, db_user=db_user)
-    return # Retorna 204 No Content
+    return
 

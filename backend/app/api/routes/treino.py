@@ -4,10 +4,10 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.schemas.training import TreinoCreate, TreinoUpdate, TreinoOut
 from app.models.user import User as SQLAlchemyUser
-from app.api.v1.deps import get_current_user
+from app.api.deps import get_current_user
 from app.services import training_service
 
-router = APIRouter(prefix="/treinos", tags=["Treinos"])
+router = APIRouter(tags=["Treinos"])
 
 @router.post(
     "/",
@@ -22,7 +22,6 @@ def create_training_route(
 ):
     return training_service.create_training(db=db, treino_data=treino_data, current_user_id=current_user.id)
 
-
 @router.get(
     "/",
     response_model=List[TreinoOut],
@@ -33,7 +32,6 @@ def read_trainings_route(
     db: Session = Depends(get_db)
 ):
     return training_service.get_trainings_for_user(db=db, user_id=current_user.id)
-
 
 @router.get(
     "/{training_id}",
@@ -52,7 +50,6 @@ def read_training_route(
             detail="Treino não encontrado ou você não tem permissão para acessá-lo."
         )
     return treino
-
 
 @router.put(
     "/{training_id}",

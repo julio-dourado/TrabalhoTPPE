@@ -8,9 +8,13 @@ from app.core.config import settings
 from app.models.user import User as SQLAlchemyUser
 from app.schemas.user import UserCreate
 from app.services.user_service import create_user
-from app.api.v1.deps import get_current_user
+from app.api.deps import get_current_user
 
-engine = create_engine(settings.DATABASE_URL)
+SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
+
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 @pytest.fixture(scope="session", autouse=True)
@@ -19,11 +23,13 @@ def setup_test_db():
     yield
 
 @pytest.fixture(scope="function")
-def db_session() -> Session:
+def db_session():
     connection = engine.connect()
     transaction = connection.begin()
     session = TestingSessionLocal(bind=connection)
+    
     yield session
+    
     session.close()
     transaction.rollback()
     connection.close()
@@ -69,11 +75,14 @@ def authenticated_user(db_session: Session) -> SQLAlchemyUser:
     user = create_user(db_session, user_data)
     return user
 
-@pytest.fixture(scope="function")
-def client_with_db(db_session: Session) -> TestClient:
+@pytest.fixture
+def client_with_db(db_session: Session):
     def override_get_db():
-        yield db_session
-
+        try:
+            yield db_session
+        finally:
+            pass
+    
     app.dependency_overrides[get_db] = override_get_db
     client = TestClient(app)
     yield client
