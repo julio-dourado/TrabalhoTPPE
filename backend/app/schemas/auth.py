@@ -1,66 +1,56 @@
-from typing import Optional
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from datetime import datetime
+from pydantic import BaseModel, Field, EmailStr
+
+# Login request schema
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str = Field(..., min_length=8)
-
-    model_config = ConfigDict(extra="forbid")
+    email: EmailStr = Field(..., description="User email address")
+    password: str = Field(..., min_length=8, description="User password")
 
 
+# Login response schema
 class LoginResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    expires_in: int  # seconds
-    user: dict
+    access_token: str = Field(..., description="JWT access token")
+    token_type: str = Field(
+        default="bearer", description="Token type (always 'bearer')"
+    )
+    user_id: int = Field(..., description="User ID")
 
 
-class RegisterRequest(BaseModel):
-    name: str = Field(..., min_length=2, max_length=255)
-    email: EmailStr
-    password: str = Field(..., min_length=8)
-    confirm_password: str = Field(..., min_length=8)
-
-    model_config = ConfigDict(extra="forbid")
-
-
-class RegisterResponse(BaseModel):
-    message: str
-    user: dict
-
-
+# Token data for internal use
 class TokenData(BaseModel):
-    user_id: Optional[int] = None
-    email: Optional[str] = None
+    email: str = Field(..., description="User email from token")
+    user_id: int = Field(..., description="User ID from token")
 
 
+# User registration request schema
+class UserRegistrationRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=255, description="User name")
+    email: EmailStr = Field(..., description="User email address")
+    password: str = Field(..., min_length=8, description="User password")
+    password_confirm: str = Field(
+        ..., min_length=8, description="Password confirmation"
+    )
+
+
+# Password change request schema
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(..., description="Current password")
+    new_password: str = Field(..., min_length=8, description="New password")
+    new_password_confirm: str = Field(
+        ..., min_length=8, description="New password confirmation"
+    )
+
+
+# Password reset request schema
 class PasswordResetRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(..., description="User email address")
 
 
+# Password reset confirm schema
 class PasswordResetConfirm(BaseModel):
-    token: str
-    new_password: str = Field(..., min_length=8)
-    confirm_password: str = Field(..., min_length=8)
-
-    model_config = ConfigDict(extra="forbid")
-
-
-class PasswordChange(BaseModel):
-    current_password: str = Field(..., min_length=8)
-    new_password: str = Field(..., min_length=8)
-    confirm_password: str = Field(..., min_length=8)
-
-    model_config = ConfigDict(extra="forbid")
-
-
-class RefreshTokenRequest(BaseModel):
-    refresh_token: str
-
-
-class RefreshTokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    expires_in: int  # seconds
+    token: str = Field(..., description="Reset token")
+    new_password: str = Field(..., min_length=8, description="New password")
+    new_password_confirm: str = Field(
+        ..., min_length=8, description="New password confirmation"
+    )

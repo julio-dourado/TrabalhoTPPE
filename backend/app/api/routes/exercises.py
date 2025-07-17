@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -18,7 +18,8 @@ from app.services.exercise_service import (
 router = APIRouter()
 
 
-@router.post("/", response_model=ExerciseOut, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=ExerciseOut,
+             status_code=status.HTTP_201_CREATED)
 def create_new_exercise(
     exercise_data: ExerciseCreate,
     db: Session = Depends(get_db),

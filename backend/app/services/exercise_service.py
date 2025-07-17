@@ -4,7 +4,6 @@ from sqlalchemy import select
 from datetime import datetime
 
 from app.models.exercise import Exercise, WithWeight, WithoutWeight, ExerciseType
-from app.models.training import Training
 from app.schemas.exercise import (
     ExerciseCreate,
     ExerciseUpdate,

@@ -1,27 +1,25 @@
 from typing import List, Optional
+from pydantic import BaseModel, Field
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict, field_validator
-
-from app.schemas.user import UserOut
-from app.schemas.exercise import ExerciseCreate, ExerciseOut, ExerciseSummary
-from app.models.training import TrainingStatus, TrainingCategory
+from app.schemas.exercise import ExerciseOut
+from app.models.training import TrainingCategory, TrainingStatus
 
 
 class TrainingBase(BaseModel):
-    name: str = Field(..., min_length=1, max_length=255, example="Leg Training")
+    name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = Field(
-        None, max_length=1000, example="Strength training focused on lower body"
+        None, max_length=1000, example="Full body workout"
     )
-    category: TrainingCategory = Field(default=TrainingCategory.STRENGTH)
+    category: TrainingCategory = Field(..., example=TrainingCategory.STRENGTH)
     estimated_duration_min: int = Field(
-        default=60, ge=15, le=300, description="Estimated duration in minutes"
+        ..., ge=15, le=300, example=60
     )
 
 
 class TrainingCreate(TrainingBase):
-    exercises: List[ExerciseCreate] = Field(..., min_length=1)
-
-    model_config = ConfigDict(extra="forbid")
+    exercises: List[int] = Field(
+        default_factory=list, description="List of exercise IDs"
+    )
 
 
 class TrainingUpdate(BaseModel):
@@ -30,22 +28,19 @@ class TrainingUpdate(BaseModel):
     category: Optional[TrainingCategory] = None
     estimated_duration_min: Optional[int] = Field(None, ge=15, le=300)
     status: Optional[TrainingStatus] = None
-
-    # Execution fields
+    exercises: Optional[List[int]] = None
+    # For session completion
     actual_duration_min: Optional[int] = Field(None, ge=1, le=600)
     calories_burned: Optional[float] = Field(None, ge=0, le=2000)
     total_volume_kg: Optional[float] = Field(None, ge=0, le=50000)
-
-    # Evaluation
+    # Rating fields (1-5 scale)
     perceived_difficulty: Optional[int] = Field(
-        None, ge=1, le=10, description="RPE - Rate of Perceived Exertion"
+        None, ge=1, le=5, example=3
     )
     satisfaction: Optional[int] = Field(
-        None, ge=1, le=5, description="Satisfaction level (1-5)"
+        None, ge=1, le=5, example=4
     )
     observations: Optional[str] = Field(None, max_length=1000)
-
-    model_config = ConfigDict(extra="forbid")
 
 
 class TrainingOut(TrainingBase):
@@ -62,43 +57,48 @@ class TrainingOut(TrainingBase):
     updated_at: Optional[datetime] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
-    exercises: List[ExerciseOut] = []
+    exercises: List[ExerciseOut]
 
-    model_config = ConfigDict(from_attributes=True)
+    class Config:
+        from_attributes = True
 
 
-class TrainingSummary(BaseModel):
-    """Simplified training data for lists"""
-    id: int
-    name: str
-    category: TrainingCategory
-    status: TrainingStatus
-    estimated_duration_min: int
+class TrainingStatistics(BaseModel):
+    total_trainings: int = Field(
+        ..., ge=0, description="Total number of trainings"
+    )
+    total_duration_min: int = Field(
+        ..., ge=0, description="Total training duration in minutes"
+    )
+    total_calories_burned: float = Field(
+        ..., ge=0, description="Total calories burned"
+    )
+    total_volume_kg: float = Field(
+        ..., ge=0, description="Total volume lifted in kg"
+    )
     actual_duration_min: Optional[int] = None
-    created_at: datetime
-    exercise_count: int = 0
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class TrainingStats(BaseModel):
-    """Training statistics for dashboard"""
-    total_trainings: int = 0
-    completed_trainings: int = 0
-    total_duration_min: int = 0
-    average_duration_min: float = 0
-    total_calories_burned: float = 0
-    total_volume_kg: float = 0
+    average_satisfaction: float = Field(
+        ..., ge=0, le=5, description="Average satisfaction rating"
+    )
+    average_difficulty: float = Field(
+        ..., ge=0, le=5, description="Average difficulty rating"
+    )
+    completed_trainings: int = Field(
+        ..., ge=0, description="Number of completed trainings"
+    )
     favorite_category: Optional[TrainingCategory] = None
-    current_streak_days: int = 0
-    best_streak_days: int = 0
+
+    class Config:
+        from_attributes = True
 
 
-class TrainingFilter(BaseModel):
-    """Filter options for training searches"""
+class TrainingFilters(BaseModel):
+    user_id: Optional[int] = None
     category: Optional[TrainingCategory] = None
     status: Optional[TrainingStatus] = None
     min_duration: Optional[int] = Field(None, ge=1)
     max_duration: Optional[int] = Field(None, ge=1)
     date_from: Optional[datetime] = None
     date_to: Optional[datetime] = None
+    skip: int = Field(0, ge=0)
+    limit: int = Field(100, ge=1, le=100)

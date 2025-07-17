@@ -1,10 +1,16 @@
-from typing import List, Optional
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user
 from app.models.user import User
-from app.schemas.training import TrainingCreate, TrainingUpdate, TrainingOut
+from app.schemas.training import (
+    TrainingCreate,
+    TrainingUpdate,
+    TrainingOut,
+    TrainingFilters,
+    TrainingStatistics,
+)
 from app.services.training_service import (
     create_training,
     get_training_by_id,
@@ -13,12 +19,14 @@ from app.services.training_service import (
     delete_training,
     start_training,
     finish_training,
+    get_training_statistics,
 )
 
 router = APIRouter()
 
 
-@router.post("/", response_model=TrainingOut, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=TrainingOut,
+             status_code=status.HTTP_201_CREATED)
 def create_new_training(
     training_data: TrainingCreate,
     db: Session = Depends(get_db),
@@ -41,8 +49,22 @@ def get_trainings(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get user trainings"""
-    return get_user_trainings(db, current_user.id, skip=skip, limit=limit)
+    """Get all trainings for the current user"""
+    filters = TrainingFilters(
+        user_id=current_user.id,
+        skip=skip,
+        limit=limit,
+    )
+    return get_user_trainings(db, filters)
+
+
+@router.get("/statistics", response_model=TrainingStatistics)
+def get_user_training_statistics(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get training statistics for the current user"""
+    return get_training_statistics(db, current_user.id)
 
 
 @router.get("/{training_id}", response_model=TrainingOut)
@@ -53,19 +75,11 @@ def get_training(
 ):
     """Get training by ID"""
     training = get_training_by_id(db, training_id)
-    if not training:
+    if not training or training.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Training not found",
         )
-    
-    # Check if the training belongs to the current user
-    if training.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied",
-        )
-    
     return training
 
 
@@ -77,28 +91,13 @@ def update_existing_training(
     current_user: User = Depends(get_current_user),
 ):
     """Update an existing training"""
-    # First check if training exists and belongs to user
-    training = get_training_by_id(db, training_id)
-    if not training:
+    training = update_training(db, training_id, training_data)
+    if not training or training.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Training not found",
         )
-    
-    if training.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied",
-        )
-    
-    updated_training = update_training(db, training_id, training_data)
-    if not updated_training:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Training not found",
-        )
-    
-    return updated_training
+    return training
 
 
 @router.delete("/{training_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -108,20 +107,6 @@ def delete_existing_training(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a training"""
-    # First check if training exists and belongs to user
-    training = get_training_by_id(db, training_id)
-    if not training:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Training not found",
-        )
-    
-    if training.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied",
-        )
-    
     success = delete_training(db, training_id)
     if not success:
         raise HTTPException(
@@ -131,63 +116,33 @@ def delete_existing_training(
 
 
 @router.post("/{training_id}/start", response_model=TrainingOut)
-def start_training_endpoint(
+def start_training_session(
     training_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Start a training"""
-    # First check if training exists and belongs to user
-    training = get_training_by_id(db, training_id)
+    """Start a training session"""
+    training = start_training(db, training_id)
     if not training:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Training not found",
         )
-    
-    if training.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied",
-        )
-    
-    started_training = start_training(db, training_id)
-    if not started_training:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Training not found",
-        )
-    
-    return started_training
+    return training
 
 
 @router.post("/{training_id}/finish", response_model=TrainingOut)
-def finish_training_endpoint(
+def finish_training_session(
     training_id: int,
     training_data: TrainingUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Finish a training"""
-    # First check if training exists and belongs to user
-    training = get_training_by_id(db, training_id)
+    """Finish a training session"""
+    training = finish_training(db, training_id, training_data)
     if not training:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Training not found",
         )
-    
-    if training.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied",
-        )
-    
-    finished_training = finish_training(db, training_id, training_data)
-    if not finished_training:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Training not found",
-        )
-    
-    return finished_training 
+    return training 
