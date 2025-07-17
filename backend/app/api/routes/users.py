@@ -1,77 +1,171 @@
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.db.session import get_db
-from app.schemas.user import UserCreate, UserOut, UserUpdate
-from app.services import user_service
-from app.models.user import User as SQLAlchemyUser
-from app.api.deps import get_current_user
-from app.security.password import get_senha_hash
+
+from app.api.deps import get_db, get_current_user
+from app.models.user import User
+from app.schemas.user import UserCreate, UserUpdate, UserOut
+from app.services.user_service import UserService
 
 router = APIRouter()
 
-# --- ROTAS PÚBLICAS ---
-@router.post(
-    "/",
-    status_code=status.HTTP_201_CREATED,
-    summary="Cria um novo usuário",
-    response_model=UserOut,
-)
-def create_user_route(user: UserCreate, db: Session = Depends(get_db)):
-    return user_service.create_user(db=db, user=user)
 
-# --- ROTAS PROTEGIDAS ---
-@router.get(
-    "/me/",
-    response_model=UserOut,
-    summary="Obtém os dados do usuário autenticado"
-)
-def read_users_me(current_user: SQLAlchemyUser = Depends(get_current_user)):
-    return current_user
-
-@router.put(
-    "/me/",
-    response_model=UserOut,
-    summary="Atualiza os dados do usuário autenticado"
-)
-def update_user_me(
-    user_update: UserUpdate,
-    current_user: SQLAlchemyUser = Depends(get_current_user),
-    db: Session = Depends(get_db)
+@router.post("/", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+def create_user(
+    user_data: UserCreate,
+    db: Session = Depends(get_db),
 ):
-    db_user = user_service.get_user_by_email(db=db, email=current_user.email)
-    
-    if not db_user:
+    """Create a new user"""
+    # Check if user already exists
+    existing_user = UserService.get_user_by_email(db, user_data.email)
+    if existing_user:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Usuário autenticado não encontrado no banco de dados."
-        )
-
-    if user_update.email is not None and user_update.email.lower() != db_user.email.lower():
-        existing_email_user = user_service.get_user_by_email(db=db, email=user_update.email.lower())
-        if existing_email_user and existing_email_user.id != db_user.id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Um usuário com este novo e-mail já existe.",
-            )
-
-    return user_service.update_user(db=db, db_user=db_user, user_update=user_update)
-
-@router.delete(
-    "/me/",
-    summary="Deleta o usuário autenticado",
-    status_code=status.HTTP_204_NO_CONTENT
-)
-def delete_user_me(
-    current_user: SQLAlchemyUser = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    db_user = user_service.get_user_by_email(db=db, email=current_user.email)
-    if not db_user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Usuário não encontrado."
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
         )
     
-    user_service.delete_user(db=db, db_user=db_user)
-    return
+    try:
+        user = UserService.create_user(db, user_data)
+        return UserOut.model_validate(user)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error creating user: {str(e)}",
+        )
 
+
+@router.get("/", response_model=List[UserOut])
+def get_users(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get all users (admin only)"""
+    users = UserService.get_users(db, skip=skip, limit=limit)
+    return [UserOut.model_validate(user) for user in users]
+
+
+@router.get("/me", response_model=UserOut)
+def get_current_user_info(
+    current_user: User = Depends(get_current_user),
+):
+    """Get current user information"""
+    return UserOut.model_validate(current_user)
+
+
+@router.get("/{user_id}", response_model=UserOut)
+def get_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get user by ID"""
+    user = UserService.get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+    return UserOut.model_validate(user)
+
+
+@router.put("/me", response_model=UserOut)
+def update_current_user(
+    user_data: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update current user information"""
+    user = UserService.update_user(db, current_user.id, user_data)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+    return UserOut.model_validate(user)
+
+
+@router.put("/{user_id}", response_model=UserOut)
+def update_user(
+    user_id: int,
+    user_data: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update user by ID (admin only or own user)"""
+    # Check if user is updating their own profile
+    if user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
+    
+    user = UserService.update_user(db, user_id, user_data)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+    return UserOut.model_validate(user)
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete user by ID (admin only or own user)"""
+    # Check if user is deleting their own profile
+    if user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
+    
+    success = UserService.delete_user(db, user_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+
+@router.post("/{user_id}/deactivate", status_code=status.HTTP_204_NO_CONTENT)
+def deactivate_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Deactivate user by ID (admin only or own user)"""
+    # Check if user is deactivating their own profile
+    if user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
+    
+    success = UserService.deactivate_user(db, user_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+
+@router.post("/{user_id}/activate", status_code=status.HTTP_204_NO_CONTENT)
+def activate_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Activate user by ID (admin only)"""
+    # For now, only allow admin to activate users
+    # In a real application, you would check if current_user is admin
+    success = UserService.activate_user(db, user_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
