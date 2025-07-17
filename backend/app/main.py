@@ -1,10 +1,14 @@
 from fastapi import FastAPI
-from app.api.routes import users, auth, treino, exercicios
+from fastapi.middleware.cors import CORSMiddleware
+from app.api.routes import users, auth, training, exercises
+from app.core.config import Settings
+
+settings = Settings()
 
 app = FastAPI(
-    title="Minha API de Treinos",
-    description="API para gerenciar usuários e seus treinos.",
-    version="0.1.0",
+    title="Training API",
+    description="API for managing users and their training routines.",
+    version="1.0.0",
     swagger_ui_parameters={"syntaxHighlight.theme": "obsidian"},
     openapi_spec_args={
         "components": {
@@ -13,7 +17,7 @@ app = FastAPI(
                     "type": "http",
                     "scheme": "bearer",
                     "bearerFormat": "JWT",
-                    "description": "Insira o token JWT com o prefixo 'Bearer '",
+                    "description": "Enter JWT token with 'Bearer ' prefix",
                 }
             }
         },
@@ -21,27 +25,22 @@ app = FastAPI(
     },
 )
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include routers
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["authentication"])
+app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
+app.include_router(exercises.router, prefix="/api/v1/exercises", tags=["exercises"])
+app.include_router(training.router, prefix="/api/v1/training", tags=["training"])
+
+
 @app.get("/")
 def read_root():
-    return {"message": "Bem-vindo ao sistema!"}
-
-app.include_router(
-    auth.router, 
-    prefix="/api/v1/auth", 
-    tags=["Authentication"]
-)
-app.include_router(
-    users.router, 
-    prefix="/api/v1/users", 
-    tags=["Users"]
-)
-app.include_router(
-    treino.router,
-    prefix="/api/v1/treinos",
-    tags=["Treinos"]
-)
-app.include_router(
-    exercicios.router,
-    prefix="/api/v1",
-    tags=["Exercícios"]
-)
+    return {"message": "Welcome to the Training API!"}

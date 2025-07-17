@@ -1,32 +1,25 @@
-
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-
 from app.db.session import get_db
 from app.models.user import User
-from app.security.jwt import decode_token
+from app.services.auth import AuthService
 
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")
+security = HTTPBearer()
 
 
 def get_current_user(
-    db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
 ) -> User:
-
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-    token_data = decode_token(token)
-    if not token_data or not token_data.user_id:
-        raise credentials_exception
-
-    user = db.query(User).filter(User.id == token_data.user_id).first()
-    if user is None:
-        raise credentials_exception
-        
-    return user
+    """Get the current authenticated user"""
+    try:
+        token = credentials.credentials
+        user = AuthService.get_current_user(db, token)
+        return user
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+            headers={"WWW-Authenticate": "Bearer"},
+        )
