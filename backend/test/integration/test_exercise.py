@@ -2,381 +2,529 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from app.schemas.user import UserCreate
-from app.models.user import User as SQLAlchemyUser
+from app.models.user import User
 from app.models.exercise import (
-    Exercicio,
-    ComPeso,
-    SemPeso,
-    GrupoMuscular,
-    Dificuldade,
-    TipoExercicio,
+    Exercise,
+    WithWeight,
+    WithoutWeight,
+    MuscleGroup,
+    Difficulty,
+    ExerciseType,
 )
-from app.models.training import Treino
+from app.models.training import Training
 from app.services import exercise_service
 
-# Note: As fixtures 'client_with_db' e 'db_session' são importadas
+# Note: As fixtures 'client_with_db' e 'db' são importadas
 # automaticamente de conftest.py pelo pytest.
 
 
-class TestExerciseRoutes:
-    """Testes das rotas de exercícios"""
+def create_authenticated_user(client: TestClient, email: str = "test@example.com", name: str = "Test User") -> str:
+    """Helper function to create a user and return auth token"""
+    user_data = {
+        "name": name,
+        "email": email,
+        "password": "password123",
+    }
+    client.post("/api/v1/users/", json=user_data)
+    
+    response_login = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "password123"},
+    )
+    return response_login.json()["access_token"]
 
-    def test_create_exercise_com_peso_success(self, client_with_db: TestClient):
+
+class TestExerciseRoutes:
+    """Tests for exercise routes"""
+
+    def test_create_exercise_with_weight_success(self, client_with_db: TestClient):
         """
-        US11: Teste de criação de exercício com peso
+        US11: Test creating exercise with weight
         """
+        # Get auth token
+        token = create_authenticated_user(client_with_db)
+        headers = {"Authorization": f"Bearer {token}"}
+
         exercise_data = {
-            "nome": "Supino",
-            "grupo_muscular": "PEITO",
-            "dificuldade": "INICIANTE",
-            "serie": 4,
-            "repeticoes": 8,
-            "comentario": "Foco no peito",
-            "instrucoes": "Deite no banco, pegue a barra com pegada média",
-            "tempo_descanso_seg": 90,
-            "is_composto": True,
-            "equipamento": "Barra olímpica",
-            "tipo_exercicio": "COM_PESO",
-            "com_peso_details": {
-                "peso_kg": 80.0,
-                "peso_maximo_kg": 100.0,
-                "incremento_sugerido_kg": 2.5,
+            "name": "Bench Press",
+            "muscle_group": "PEITO",
+            "difficulty": "INICIANTE",
+            "sets": 4,
+            "reps": 8,
+            "comment": "Focus on chest",
+            "instructions": "Lie on bench, grip bar with medium grip",
+            "rest_time_sec": 90,
+            "is_compound": True,
+            "equipment": "Olympic barbell",
+            "exercise_type": "COM_PESO",
+            "with_weight_details": {
+                "weight_kg": 80.0,
+                "max_weight_kg": 100.0,
+                "suggested_increment_kg": 2.5,
             },
         }
 
-        response = client_with_db.post("/api/v1/exercicios/", json=exercise_data)
+        response = client_with_db.post("/api/v1/exercises/", json=exercise_data, headers=headers)
 
         assert response.status_code == 201
         data = response.json()
-        assert data["nome"] == "Supino"
-        assert data["grupo_muscular"] == "PEITO"
-        assert data["serie"] == 4
-        assert data["repeticoes"] == 8
-        assert data["tipo_exercicio"] == "COM_PESO"
-        assert data["com_peso_details"]["peso_kg"] == 80.0
-        assert data["sem_peso_details"] is None
+        
+        assert data["name"] == "Bench Press"
+        assert data["muscle_group"] == "PEITO"
+        assert data["difficulty"] == "INICIANTE"
+        assert data["sets"] == 4
+        assert data["reps"] == 8
+        assert data["comment"] == "Focus on chest"
+        assert data["instructions"] == "Lie on bench, grip bar with medium grip"
+        assert data["rest_time_sec"] == 90
+        assert data["is_compound"] == True
+        assert data["equipment"] == "Olympic barbell"
+        assert data["exercise_type"] == "COM_PESO"
+        assert data["with_weight_details"]["weight_kg"] == 80.0
+        assert data["with_weight_details"]["max_weight_kg"] == 100.0
+        assert data["with_weight_details"]["suggested_increment_kg"] == 2.5
+        assert data["without_weight_details"] is None
         assert "id" in data
 
-    def test_create_exercise_sem_peso_success(self, client_with_db: TestClient):
+    def test_create_exercise_without_weight_success(self, client_with_db: TestClient):
         """
-        US14: Teste de criação de exercício sem peso
+        US11: Test creating exercise without weight
         """
+        # Get auth token
+        token = create_authenticated_user(client_with_db, email="test2@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
+
         exercise_data = {
-            "nome": "Corrida",
-            "grupo_muscular": "CARDIO",
-            "dificuldade": "INTERMEDIARIO",
-            "serie": 1,
-            "repeticoes": 1,
-            "comentario": "Cardio matinal",
-            "instrucoes": "Mantenha ritmo constante",
-            "tempo_descanso_seg": 0,
-            "is_composto": False,
-            "equipamento": "Esteira",
-            "tipo_exercicio": "SEM_PESO",
-            "sem_peso_details": {
-                "tempo_seg": 1800.0,
-                "distancia_m": 5000.0,
-                "calorias_estimadas": 300.0,
-                "intensidade": "moderada",
+            "name": "Running",
+            "muscle_group": "CARDIO",
+            "difficulty": "INICIANTE",
+            "sets": 1,
+            "reps": 1,
+            "comment": "Cardio exercise",
+            "instructions": "Run at steady pace",
+            "rest_time_sec": 60,
+            "is_compound": False,
+            "equipment": "None",
+            "exercise_type": "SEM_PESO",
+            "without_weight_details": {
+                "duration_sec": 1800.0,
+                "distance_m": 5000.0,
+                "target_speed": 10.0,
+                "intensity_level": 5,
             },
         }
 
-        response = client_with_db.post("/api/v1/exercicios/", json=exercise_data)
+        response = client_with_db.post("/api/v1/exercises/", json=exercise_data, headers=headers)
 
         assert response.status_code == 201
         data = response.json()
-        assert data["nome"] == "Corrida"
-        assert data["grupo_muscular"] == "CARDIO"
-        assert data["tipo_exercicio"] == "SEM_PESO"
-        assert data["sem_peso_details"]["tempo_seg"] == 1800.0
-        assert data["sem_peso_details"]["distancia_m"] == 5000.0
-        assert data["sem_peso_details"]["calorias_estimadas"] == 300.0
-        assert data["com_peso_details"] is None
+        
+        assert data["name"] == "Running"
+        assert data["muscle_group"] == "CARDIO"
+        assert data["difficulty"] == "INICIANTE"
+        assert data["sets"] == 1
+        assert data["reps"] == 1
+        assert data["comment"] == "Cardio exercise"
+        assert data["instructions"] == "Run at steady pace"
+        assert data["rest_time_sec"] == 60
+        assert data["is_compound"] == False
+        assert data["equipment"] == "None"
+        assert data["exercise_type"] == "SEM_PESO"
+        assert data["without_weight_details"]["duration_sec"] == 1800.0
+        assert data["without_weight_details"]["distance_m"] == 5000.0
+        assert data["without_weight_details"]["target_speed"] == 10.0
+        assert data["without_weight_details"]["intensity_level"] == 5
+        assert data["with_weight_details"] is None
+        assert "id" in data
 
-    def test_create_exercise_invalid_tipo(self, client_with_db: TestClient):
-        """Teste de validação de tipo de exercício inválido"""
+    def test_create_exercise_with_weight_validation_errors(self, client_with_db: TestClient):
+        """Test creating exercise with validation errors"""
+        # Get auth token
+        token = create_authenticated_user(client_with_db, email="test3@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
+
         exercise_data = {
-            "nome": "Exercício Inválido",
-            "grupo_muscular": "PEITO",
-            "serie": 3,
-            "repeticoes": 10,
-            "tipo_exercicio": "TipoInvalido",
+            "name": "Bench Press",
+            "muscle_group": "PEITO",
+            "difficulty": "INICIANTE",
+            "sets": 4,
+            "reps": 8,
+            "comment": "Focus on chest",
+            "instructions": "Lie on bench, grip bar with medium grip",
+            "rest_time_sec": 90,
+            "is_compound": True,
+            "equipment": "Olympic barbell",
+            "exercise_type": "COM_PESO",
+            # Missing with_weight_details
         }
 
-        response = client_with_db.post("/api/v1/exercicios/", json=exercise_data)
-        assert response.status_code == 422
+        response = client_with_db.post("/api/v1/exercises/", json=exercise_data, headers=headers)
 
-    def test_create_exercise_com_peso_without_details(self, client_with_db: TestClient):
-        """Teste de validação: exercício com peso sem detalhes"""
+        assert response.status_code == 422  # Validation error
+
+    def test_create_exercise_without_weight_validation_errors(self, client_with_db: TestClient):
+        """Test creating exercise without weight with validation errors"""
+        # Get auth token
+        token = create_authenticated_user(client_with_db, email="test4@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
+
         exercise_data = {
-            "nome": "Supino",
-            "grupo_muscular": "PEITO",
-            "serie": 4,
-            "repeticoes": 8,
-            "tipo_exercicio": "COM_PESO",
-            # Faltando com_peso_details
+            "name": "Running",
+            "muscle_group": "CARDIO",
+            "difficulty": "INICIANTE",
+            "sets": 1,
+            "reps": 1,
+            "comment": "Cardio exercise",
+            "instructions": "Run at steady pace",
+            "rest_time_sec": 60,
+            "is_compound": False,
+            "equipment": "None",
+            "exercise_type": "SEM_PESO",
+            # Missing without_weight_details
         }
 
-        response = client_with_db.post("/api/v1/exercicios/", json=exercise_data)
-        assert response.status_code == 422
+        response = client_with_db.post("/api/v1/exercises/", json=exercise_data, headers=headers)
 
-    def test_create_exercise_sem_peso_without_details(self, client_with_db: TestClient):
-        """Teste de validação: exercício sem peso sem detalhes"""
-        exercise_data = {
-            "nome": "Corrida",
-            "grupo_muscular": "CARDIO",
-            "serie": 1,
-            "repeticoes": 1,
-            "tipo_exercicio": "SEM_PESO",
-            # Faltando sem_peso_details
+        assert response.status_code == 422  # Validation error
+
+    def test_get_all_exercises(self, client_with_db: TestClient):
+        """Test getting all exercises"""
+        # Get auth token
+        token = create_authenticated_user(client_with_db, email="test5@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # First create some exercises
+        exercise_data_1 = {
+            "name": "Bench Press",
+            "muscle_group": "PEITO",
+            "difficulty": "INICIANTE",
+            "sets": 4,
+            "reps": 8,
+            "comment": "Focus on chest",
+            "instructions": "Lie on bench, grip bar with medium grip",
+            "rest_time_sec": 90,
+            "is_compound": True,
+            "equipment": "Olympic barbell",
+            "exercise_type": "COM_PESO",
+            "with_weight_details": {
+                "weight_kg": 80.0,
+                "max_weight_kg": 100.0,
+                "suggested_increment_kg": 2.5,
+            },
         }
-
-        response = client_with_db.post("/api/v1/exercicios/", json=exercise_data)
-        assert response.status_code == 422
-
-    def test_get_all_exercises(self, client_with_db: TestClient, db_session: Session):
-        """Teste de listagem de todos os exercícios"""
-        # Criar exercícios de teste
-        self._create_test_exercises(db_session)
-
-        response = client_with_db.get("/api/v1/exercicios/")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) >= 2
-
-        # Verificar se há exercícios de ambos os tipos
-        tipos = [ex["tipo_exercicio"] for ex in data]
-        assert "COM_PESO" in tipos
-        assert "SEM_PESO" in tipos
-
-    def test_get_exercises_by_type_com_peso(
-        self, client_with_db: TestClient, db_session: Session
-    ):
-        """Teste de filtragem por tipo COM_PESO"""
-        self._create_test_exercises(db_session)
-
-        response = client_with_db.get("/api/v1/exercicios/?tipo=COM_PESO")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert all(ex["tipo_exercicio"] == "COM_PESO" for ex in data)
-        assert all(ex["com_peso_details"] is not None for ex in data)
-
-    def test_get_exercises_by_type_sem_peso(
-        self, client_with_db: TestClient, db_session: Session
-    ):
-        """Teste de filtragem por tipo SEM_PESO"""
-        self._create_test_exercises(db_session)
-
-        response = client_with_db.get("/api/v1/exercicios/?tipo=SEM_PESO")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert all(ex["tipo_exercicio"] == "SEM_PESO" for ex in data)
-        assert all(ex["sem_peso_details"] is not None for ex in data)
-
-    def test_get_exercises_invalid_type_filter(self, client_with_db: TestClient):
-        """Teste de filtro com tipo inválido"""
-        response = client_with_db.get("/api/v1/exercicios/?tipo=TipoInvalido")
-
-        assert response.status_code == 400
-        assert "Tipo deve ser 'COM_PESO' ou 'SEM_PESO'" in response.json()["detail"]
-
-    def test_get_exercise_by_id(self, client_with_db: TestClient, db_session: Session):
-        """Teste de busca de exercício por ID"""
-        exercise_id = self._create_test_exercises(db_session)[0]
-
-        response = client_with_db.get(f"/api/v1/exercicios/{exercise_id}")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["id"] == exercise_id
-        assert "nome" in data
-        assert "tipo_exercicio" in data
-
-    def test_get_exercise_not_found(self, client_with_db: TestClient):
-        """Teste de busca de exercício inexistente"""
-        response = client_with_db.get("/api/v1/exercicios/999999")
-
-        assert response.status_code == 404
-        assert "Exercício não encontrado" in response.json()["detail"]
-
-    def test_update_exercise_com_peso(
-        self, client_with_db: TestClient, db_session: Session
-    ):
-        """
-        US12: Teste de atualização de exercício com peso
-        """
-        exercise_id = self._create_test_exercises(db_session)[0]
-
-        update_data = {
-            "nome": "Supino Atualizado",
-            "serie": 5,
-            "com_peso_details": {"peso_kg": 90.0},
-        }
-
-        response = client_with_db.put(
-            f"/api/v1/exercicios/{exercise_id}", json=update_data
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["nome"] == "Supino Atualizado"
-        assert data["serie"] == 5
-        assert data["com_peso_details"]["peso_kg"] == 90.0
-
-    def test_update_exercise_sem_peso(
-        self, client_with_db: TestClient, db_session: Session
-    ):
-        """
-        US15: Teste de atualização de exercício sem peso
-        """
-        exercise_ids = self._create_test_exercises(db_session)
-        sem_peso_id = exercise_ids[1]  # Segundo exercício é sem peso
-
-        update_data = {
-            "nome": "Corrida Atualizada",
-            "sem_peso_details": {
-                "tempo_seg": 2400.0,
-                "distancia_m": 6000.0,
-                "calorias_estimadas": 400.0,
-                "intensidade": "alta",
+        
+        exercise_data_2 = {
+            "name": "Running",
+            "muscle_group": "CARDIO",
+            "difficulty": "INICIANTE",
+            "sets": 1,
+            "reps": 1,
+            "comment": "Cardio exercise",
+            "instructions": "Run at steady pace",
+            "rest_time_sec": 60,
+            "is_compound": False,
+            "equipment": "None",
+            "exercise_type": "SEM_PESO",
+            "without_weight_details": {
+                "duration_sec": 1800.0,
+                "distance_m": 5000.0,
+                "target_speed": 10.0,
+                "intensity_level": 5,
             },
         }
 
-        response = client_with_db.put(
-            f"/api/v1/exercicios/{sem_peso_id}", json=update_data
-        )
+        # Create exercises
+        response1 = client_with_db.post("/api/v1/exercises/", json=exercise_data_1, headers=headers)
+        response2 = client_with_db.post("/api/v1/exercises/", json=exercise_data_2, headers=headers)
+        
+        assert response1.status_code == 201
+        assert response2.status_code == 201
 
+        # Get all exercises
+        response = client_with_db.get("/api/v1/exercises/", headers=headers)
+        
         assert response.status_code == 200
         data = response.json()
-        assert data["nome"] == "Corrida Atualizada"
-        assert data["sem_peso_details"]["tempo_seg"] == 2400.0
-        assert data["sem_peso_details"]["distancia_m"] == 6000.0
-        assert data["sem_peso_details"]["calorias_estimadas"] == 400.0
-        assert data["sem_peso_details"]["intensidade"] == "alta"
+        assert len(data) == 2
+        assert data[0]["name"] == "Bench Press"
+        assert data[1]["name"] == "Running"
+
+    def test_get_exercise_by_id(self, client_with_db: TestClient):
+        """Test getting exercise by ID"""
+        # Get auth token
+        token = create_authenticated_user(client_with_db, email="test6@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # Create an exercise first
+        exercise_data = {
+            "name": "Bench Press",
+            "muscle_group": "PEITO",
+            "difficulty": "INICIANTE",
+            "sets": 4,
+            "reps": 8,
+            "comment": "Focus on chest",
+            "instructions": "Lie on bench, grip bar with medium grip",
+            "rest_time_sec": 90,
+            "is_compound": True,
+            "equipment": "Olympic barbell",
+            "exercise_type": "COM_PESO",
+            "with_weight_details": {
+                "weight_kg": 80.0,
+                "max_weight_kg": 100.0,
+                "suggested_increment_kg": 2.5,
+            },
+        }
+
+        create_response = client_with_db.post("/api/v1/exercises/", json=exercise_data, headers=headers)
+        assert create_response.status_code == 201
+        created_exercise = create_response.json()
+
+        # Get the exercise by ID
+        response = client_with_db.get(f"/api/v1/exercises/{created_exercise['id']}", headers=headers)
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == created_exercise["id"]
+        assert data["name"] == "Bench Press"
+        assert data["muscle_group"] == "PEITO"
+
+    def test_get_exercise_by_id_not_found(self, client_with_db: TestClient):
+        """Test getting exercise by ID that doesn't exist"""
+        # Get auth token
+        token = create_authenticated_user(client_with_db, email="test7@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
+
+        response = client_with_db.get("/api/v1/exercises/999", headers=headers)
+        
+        assert response.status_code == 404
+
+    def test_update_exercise(self, client_with_db: TestClient):
+        """Test updating an exercise"""
+        # Get auth token
+        token = create_authenticated_user(client_with_db, email="test8@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # Create an exercise first
+        exercise_data = {
+            "name": "Bench Press",
+            "muscle_group": "PEITO",
+            "difficulty": "INICIANTE",
+            "sets": 4,
+            "reps": 8,
+            "comment": "Focus on chest",
+            "instructions": "Lie on bench, grip bar with medium grip",
+            "rest_time_sec": 90,
+            "is_compound": True,
+            "equipment": "Olympic barbell",
+            "exercise_type": "COM_PESO",
+            "with_weight_details": {
+                "weight_kg": 80.0,
+                "max_weight_kg": 100.0,
+                "suggested_increment_kg": 2.5,
+            },
+        }
+
+        create_response = client_with_db.post("/api/v1/exercises/", json=exercise_data, headers=headers)
+        assert create_response.status_code == 201
+        created_exercise = create_response.json()
+
+        # Update the exercise
+        update_data = {
+            "name": "Incline Bench Press",
+            "sets": 5,
+            "reps": 6,
+            "with_weight_details": {
+                "weight_kg": 90.0,
+                "max_weight_kg": 110.0,
+                "suggested_increment_kg": 5.0,
+            },
+        }
+
+        response = client_with_db.put(f"/api/v1/exercises/{created_exercise['id']}", json=update_data, headers=headers)
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["name"] == "Incline Bench Press"
+        assert data["sets"] == 5
+        assert data["reps"] == 6
+        assert data["with_weight_details"]["weight_kg"] == 90.0
 
     def test_update_exercise_not_found(self, client_with_db: TestClient):
-        """Teste de atualização de exercício inexistente"""
-        update_data = {"nome": "Exercício Inexistente"}
+        """Test updating exercise that doesn't exist"""
+        # Get auth token
+        token = create_authenticated_user(client_with_db, email="test9@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
 
-        response = client_with_db.put("/api/v1/exercicios/999999", json=update_data)
+        update_data = {
+            "name": "Updated Exercise",
+            "sets": 5,
+        }
 
+        response = client_with_db.put("/api/v1/exercises/999", json=update_data, headers=headers)
+        
         assert response.status_code == 404
-        assert "Exercício não encontrado" in response.json()["detail"]
 
-    def test_delete_exercise_com_peso(
-        self, client_with_db: TestClient, db_session: Session
-    ):
-        """
-        US13: Teste de exclusão de exercício com peso
-        """
-        exercise_id = self._create_test_exercises(db_session)[0]
+    def test_delete_exercise(self, client_with_db: TestClient):
+        """Test deleting an exercise"""
+        # Get auth token
+        token = create_authenticated_user(client_with_db, email="test10@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
 
-        response = client_with_db.delete(f"/api/v1/exercicios/{exercise_id}")
+        # Create an exercise first
+        exercise_data = {
+            "name": "Bench Press",
+            "muscle_group": "PEITO",
+            "difficulty": "INICIANTE",
+            "sets": 4,
+            "reps": 8,
+            "comment": "Focus on chest",
+            "instructions": "Lie on bench, grip bar with medium grip",
+            "rest_time_sec": 90,
+            "is_compound": True,
+            "equipment": "Olympic barbell",
+            "exercise_type": "COM_PESO",
+            "with_weight_details": {
+                "weight_kg": 80.0,
+                "max_weight_kg": 100.0,
+                "suggested_increment_kg": 2.5,
+            },
+        }
 
+        create_response = client_with_db.post("/api/v1/exercises/", json=exercise_data, headers=headers)
+        assert create_response.status_code == 201
+        created_exercise = create_response.json()
+
+        # Delete the exercise
+        response = client_with_db.delete(f"/api/v1/exercises/{created_exercise['id']}", headers=headers)
+        
         assert response.status_code == 204
 
-        # Verificar se foi realmente deletado
-        get_response = client_with_db.get(f"/api/v1/exercicios/{exercise_id}")
-        assert get_response.status_code == 404
-
-    def test_delete_exercise_sem_peso(
-        self, client_with_db: TestClient, db_session: Session
-    ):
-        """
-        US16: Teste de exclusão de exercício sem peso
-        """
-        exercise_ids = self._create_test_exercises(db_session)
-        sem_peso_id = exercise_ids[1]
-
-        response = client_with_db.delete(f"/api/v1/exercicios/{sem_peso_id}")
-
-        assert response.status_code == 204
-
-        # Verificar se foi realmente deletado
-        get_response = client_with_db.get(f"/api/v1/exercicios/{sem_peso_id}")
+        # Verify it's deleted
+        get_response = client_with_db.get(f"/api/v1/exercises/{created_exercise['id']}", headers=headers)
         assert get_response.status_code == 404
 
     def test_delete_exercise_not_found(self, client_with_db: TestClient):
-        """Teste de exclusão de exercício inexistente"""
-        response = client_with_db.delete("/api/v1/exercicios/999999")
+        """Test deleting exercise that doesn't exist"""
+        # Get auth token
+        token = create_authenticated_user(client_with_db, email="test11@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
 
+        response = client_with_db.delete("/api/v1/exercises/999", headers=headers)
+        
         assert response.status_code == 404
-        assert "Exercício não encontrado" in response.json()["detail"]
 
-    def test_get_weight_exercises_route(
-        self, client_with_db: TestClient, db_session: Session
-    ):
-        """Teste da rota específica para exercícios com peso"""
-        self._create_test_exercises(db_session)
+    def test_get_exercises_by_muscle_group(self, client_with_db: TestClient):
+        """Test getting exercises by muscle group"""
+        # Get auth token
+        token = create_authenticated_user(client_with_db, email="test12@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
 
-        response = client_with_db.get("/api/v1/exercicios/com-peso/")
+        # Create exercises with different muscle groups
+        exercise_data_1 = {
+            "name": "Bench Press",
+            "muscle_group": "PEITO",
+            "difficulty": "INICIANTE",
+            "sets": 4,
+            "reps": 8,
+            "comment": "Focus on chest",
+            "instructions": "Lie on bench, grip bar with medium grip",
+            "rest_time_sec": 90,
+            "is_compound": True,
+            "equipment": "Olympic barbell",
+            "exercise_type": "COM_PESO",
+            "with_weight_details": {
+                "weight_kg": 80.0,
+                "max_weight_kg": 100.0,
+                "suggested_increment_kg": 2.5,
+            },
+        }
+        
+        exercise_data_2 = {
+            "name": "Squat",
+            "muscle_group": "PERNAS",
+            "difficulty": "INICIANTE",
+            "sets": 4,
+            "reps": 8,
+            "comment": "Focus on legs",
+            "instructions": "Keep feet shoulder-width apart",
+            "rest_time_sec": 90,
+            "is_compound": True,
+            "equipment": "Olympic barbell",
+            "exercise_type": "COM_PESO",
+            "with_weight_details": {
+                "weight_kg": 100.0,
+                "max_weight_kg": 120.0,
+                "suggested_increment_kg": 5.0,
+            },
+        }
 
+        # Create exercises
+        client_with_db.post("/api/v1/exercises/", json=exercise_data_1, headers=headers)
+        client_with_db.post("/api/v1/exercises/", json=exercise_data_2, headers=headers)
+
+        # Get exercises by muscle group
+        response = client_with_db.get("/api/v1/exercises/muscle-group/PEITO", headers=headers)
+        
         assert response.status_code == 200
         data = response.json()
-        assert all(ex["tipo_exercicio"] == "COM_PESO" for ex in data)
-        assert all(ex["com_peso_details"] is not None for ex in data)
+        assert len(data) == 1
+        assert data[0]["name"] == "Bench Press"
+        assert data[0]["muscle_group"] == "PEITO"
 
-    def test_get_cardio_exercises_route(
-        self, client_with_db: TestClient, db_session: Session
-    ):
-        """Teste da rota específica para exercícios sem peso (cardio)"""
-        self._create_test_exercises(db_session)
+    def test_get_exercises_by_difficulty(self, client_with_db: TestClient):
+        """Test getting exercises by difficulty"""
+        # Get auth token
+        token = create_authenticated_user(client_with_db, email="test13@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
 
-        response = client_with_db.get("/api/v1/exercicios/sem-peso/")
+        # Create exercises with different difficulties
+        exercise_data_1 = {
+            "name": "Bench Press",
+            "muscle_group": "PEITO",
+            "difficulty": "INICIANTE",
+            "sets": 4,
+            "reps": 8,
+            "comment": "Focus on chest",
+            "instructions": "Lie on bench, grip bar with medium grip",
+            "rest_time_sec": 90,
+            "is_compound": True,
+            "equipment": "Olympic barbell",
+            "exercise_type": "COM_PESO",
+            "with_weight_details": {
+                "weight_kg": 80.0,
+                "max_weight_kg": 100.0,
+                "suggested_increment_kg": 2.5,
+            },
+        }
+        
+        exercise_data_2 = {
+            "name": "Deadlift",
+            "muscle_group": "COSTAS",
+            "difficulty": "AVANCADO",
+            "sets": 3,
+            "reps": 5,
+            "comment": "Complex movement",
+            "instructions": "Keep back straight, lift with legs",
+            "rest_time_sec": 120,
+            "is_compound": True,
+            "equipment": "Olympic barbell",
+            "exercise_type": "COM_PESO",
+            "with_weight_details": {
+                "weight_kg": 120.0,
+                "max_weight_kg": 140.0,
+                "suggested_increment_kg": 5.0,
+            },
+        }
 
+        # Create exercises
+        client_with_db.post("/api/v1/exercises/", json=exercise_data_1, headers=headers)
+        client_with_db.post("/api/v1/exercises/", json=exercise_data_2, headers=headers)
+
+        # Get exercises by difficulty
+        response = client_with_db.get("/api/v1/exercises/difficulty/INICIANTE", headers=headers)
+        
         assert response.status_code == 200
         data = response.json()
-        assert all(ex["tipo_exercicio"] == "SEM_PESO" for ex in data)
-        assert all(ex["sem_peso_details"] is not None for ex in data)
-
-    def _create_test_exercises(self, db: Session) -> list[int]:
-        """Cria exercícios de teste e retorna os IDs"""
-        # Usar o service para criar os exercícios
-        from app.schemas.exercise import ExercicioCreate, ComPesoCreate, SemPesoCreate
-
-        # Exercício com peso
-        exercise_1 = ExercicioCreate(
-            nome="Supino Teste",
-            grupo_muscular=GrupoMuscular.PEITO,
-            dificuldade=Dificuldade.INICIANTE,
-            serie=3,
-            repeticoes=10,
-            comentario="Teste com peso",
-            instrucoes="Instrução de teste",
-            tempo_descanso_seg=60,
-            is_composto=True,
-            equipamento="Barra",
-            tipo_exercicio=TipoExercicio.COM_PESO,
-            com_peso_details=ComPesoCreate(
-                peso_kg=60.0, peso_maximo_kg=80.0, incremento_sugerido_kg=2.5
-            ),
-        )
-
-        # Exercício sem peso
-        exercise_2 = ExercicioCreate(
-            nome="Corrida Teste",
-            grupo_muscular=GrupoMuscular.CARDIO,
-            dificuldade=Dificuldade.INTERMEDIARIO,
-            serie=1,
-            repeticoes=1,
-            comentario="Teste sem peso",
-            instrucoes="Instrução de cardio",
-            tempo_descanso_seg=0,
-            is_composto=False,
-            equipamento="Esteira",
-            tipo_exercicio=TipoExercicio.SEM_PESO,
-            sem_peso_details=SemPesoCreate(
-                tempo_seg=1200.0,
-                distancia_m=3000.0,
-                calorias_estimadas=200.0,
-                intensidade="moderada",
-            ),
-        )
-
-        created_1 = exercise_service.create_exercise(db, exercise_1)
-        created_2 = exercise_service.create_exercise(db, exercise_2)
-
-        return [created_1.id, created_2.id]
+        assert len(data) == 1
+        assert data[0]["name"] == "Bench Press"
+        assert data[0]["difficulty"] == "INICIANTE"

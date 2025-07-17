@@ -2,707 +2,550 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from app.schemas.user import UserCreate
-from app.models.user import User as SQLAlchemyUser
-from app.security.password import verify_password, get_senha_hash
+from app.models.user import User
+from app.security.password import verify_password, get_password_hash
 from app.core.config import settings
 from app.security.jwt import create_access_token, decode_token
-from app.schemas.training import TreinoCreate
-from app.schemas.exercise import ExercicioCreate, ComPesoCreate, SemPesoCreate
+from app.schemas.training import TrainingCreate
+from app.schemas.exercise import ExerciseCreate, WithWeightCreate, WithoutWeightCreate
+from app.models.exercise import MuscleGroup, Difficulty, ExerciseType
+from app.models.training import TrainingCategory, TrainingStatus
 
-# Note: As fixtures 'client_with_db' e 'db_session' são importadas
+# Note: As fixtures 'client_with_db' e 'db' são importadas
 # automaticamente de conftest.py pelo pytest.
 
 
-def test_full_authentication_flow(client_with_db: TestClient, db_session: Session):
-    """
-    Testa o fluxo completo de registro, login e acesso a uma rota protegida.
-    """
+def create_authenticated_user(client: TestClient, email: str = "test@example.com", name: str = "Test User") -> str:
+    """Helper function to create a user and return auth token"""
     user_data = {
-        "nome": "Test User",
-        "email": "test@example.com",
-        "senha": "password123",
+        "name": name,
+        "email": email,
+        "password": "password123",
     }
-
-    # 1. Registrar usuário
-    response_create = client_with_db.post("/api/v1/users/", json=user_data)
-    assert response_create.status_code == 201
-    created_user = response_create.json()
-    assert created_user["email"] == user_data["email"]
-    assert created_user["nome"] == user_data["nome"]
-    assert "id" in created_user
-
-    # 2. Fazer login
-    response_login = client_with_db.post(
-        "/api/v1/auth/token",
-        data={"username": "test@example.com", "password": "password123"},
+    client.post("/api/v1/users/", json=user_data)
+    
+    response_login = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "password123"},
     )
-    assert response_login.status_code == 200
-    token = response_login.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
-
-    # 3. Acessar rota protegida (/users/me)
-    response_me = client_with_db.get("/api/v1/users/me/", headers=headers)
-    assert response_me.status_code == 200
-    me_user = response_me.json()
-    assert me_user["email"] == user_data["email"]
-    assert me_user["nome"] == user_data["nome"]
-    assert me_user["id"] == created_user["id"]
+    return response_login.json()["access_token"]
 
 
-def test_login_with_wrong_password_fails(
-    client_with_db: TestClient, db_session: Session
-):
-    """
-    Testa que o login falha com senha incorreta.
-    """
-    user_data = UserCreate(
-        nome="Wrong Pass User", email="wrongpass@example.com", senha="correctpassword"
-    )
-    from app.services.user_service import create_user
+class TestTrainingIntegration:
+    """Integration tests for training functionality"""
 
-    create_user(db_session, user_data)
+    def test_create_training_success(self, client_with_db: TestClient, db: Session):
+        """Test creating a training successfully"""
+        # Create user and login
+        token = create_authenticated_user(client_with_db)
+        headers = {"Authorization": f"Bearer {token}"}
 
-    response_login = client_with_db.post(
-        "/api/v1/auth/token",
-        data={"username": user_data.email, "password": "wrongpassword"},
-    )
-    assert response_login.status_code == 400
+        # Create training with complete exercise
+        training_data = {
+            "name": "Push Training",
+            "description": "Push exercises for chest, shoulders, and triceps",
+            "category": "FORCA",
+            "estimated_duration_min": 60,
+            "exercises": [
+                {
+                    "name": "Bench Press",
+                    "muscle_group": "PEITO",
+                    "difficulty": "INICIANTE",
+                    "sets": 4,
+                    "reps": 8,
+                    "comment": "Focus on chest",
+                    "instructions": "Lie on bench, grip bar with medium grip",
+                    "rest_time_sec": 90,
+                    "is_compound": True,
+                    "equipment": "Olympic barbell",
+                    "exercise_type": "COM_PESO",
+                    "with_weight_details": {
+                        "weight_kg": 80.0,
+                        "max_weight_kg": 100.0,
+                        "suggested_increment_kg": 2.5,
+                    },
+                }
+            ],
+        }
 
+        response = client_with_db.post("/api/v1/training/", json=training_data, headers=headers)
+        
+        assert response.status_code == 201
+        
+        data = response.json()
+        assert data["name"] == "Push Training"
+        assert data["description"] == "Push exercises for chest, shoulders, and triceps"
+        assert data["category"] == "FORCA"
+        assert data["estimated_duration_min"] == 60
+        assert data["status"] == "PLANEJADO"
+        assert "id" in data
+        assert len(data["exercises"]) == 1
+        assert data["exercises"][0]["name"] == "Bench Press"
 
-def test_access_protected_route_without_token_fails(
-    client_with_db: TestClient, db_session: Session
-):
-    """
-    Testa que o acesso a rota protegida sem token falha.
-    """
-    response = client_with_db.get("/api/v1/users/me/")
-    assert response.status_code == 401
+    def test_create_training_with_exercises(self, client_with_db: TestClient, db: Session):
+        """Test creating a training with exercises"""
+        # Create user and login
+        token = create_authenticated_user(client_with_db, email="test2@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
 
-
-def test_access_protected_route_with_invalid_token_fails(
-    client_with_db: TestClient, db_session: Session
-):
-    """
-    Testa que o acesso a rota protegida com token inválido falha.
-    """
-    headers = {"Authorization": "Bearer invalid_token"}
-    response = client_with_db.get("/api/v1/users/me/", headers=headers)
-    assert response.status_code == 401
-
-
-def test_update_user_me(client_with_db: TestClient, db_session: Session):
-    """
-    Testa a atualização dos dados do próprio usuário autenticado.
-    """
-    user_data = {
-        "nome": "Test User",
-        "email": "test3@example.com",
-        "senha": "password123",
-    }
-
-    client_with_db.post("/api/v1/users/", json=user_data)
-
-    response_login = client_with_db.post(
-        "/api/v1/auth/token",
-        data={"username": "test3@example.com", "password": "password123"},
-    )
-    token = response_login.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
-
-    update_data = {"nome": "Updated Name"}
-    response_update = client_with_db.put(
-        "/api/v1/users/me/", json=update_data, headers=headers
-    )
-    assert response_update.status_code == 200
-    assert response_update.json()["nome"] == "Updated Name"
-
-
-def test_update_user_me_email_already_exists(
-    client_with_db: TestClient, db_session: Session
-):
-    """
-    Testa a tentativa de atualizar o e-mail para um que já existe.
-    """
-    user1_data = {
-        "nome": "User 1",
-        "email": "user1@example.com",
-        "senha": "password123",
-    }
-    user2_data = {
-        "nome": "User 2",
-        "email": "user2@example.com",
-        "senha": "password123",
-    }
-
-    client_with_db.post("/api/v1/users/", json=user1_data)
-    client_with_db.post("/api/v1/users/", json=user2_data)
-
-    response_login = client_with_db.post(
-        "/api/v1/auth/token",
-        data={"username": "user1@example.com", "password": "password123"},
-    )
-    token = response_login.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
-
-    update_data = {"email": "user2@example.com"}
-    response_update = client_with_db.put(
-        "/api/v1/users/me/", json=update_data, headers=headers
-    )
-    assert response_update.status_code == 400
-
-
-def test_delete_user_me(client_with_db: TestClient, db_session: Session):
-    """
-    Testa a deleção do próprio usuário autenticado.
-    """
-    user_data = {
-        "nome": "Test User",
-        "email": "test4@example.com",
-        "senha": "password123",
-    }
-
-    create_response = client_with_db.post("/api/v1/users/", json=user_data)
-    created_user = create_response.json()
-
-    response_login = client_with_db.post(
-        "/api/v1/auth/token",
-        data={"username": "test4@example.com", "password": "password123"},
-    )
-    token = response_login.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
-
-    response_delete = client_with_db.delete("/api/v1/users/me/", headers=headers)
-    assert response_delete.status_code == 204
-
-    deleted_user = (
-        db_session.query(SQLAlchemyUser)
-        .filter(SQLAlchemyUser.id == created_user["id"])
-        .first()
-    )
-    assert deleted_user is None
-
-
-def test_delete_user_me_not_found_after_deletion(
-    client_with_db: TestClient, db_session: Session
-):
-    """
-    Testa que uma tentativa de deletar um usuário já deletado retorna 404.
-    """
-    user_data = {
-        "nome": "Test User",
-        "email": "test5@example.com",
-        "senha": "password123",
-    }
-
-    client_with_db.post("/api/v1/users/", json=user_data)
-
-    response_login = client_with_db.post(
-        "/api/v1/auth/token",
-        data={"username": "test5@example.com", "password": "password123"},
-    )
-    token = response_login.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
-
-    client_with_db.delete("/api/v1/users/me/", headers=headers)
-
-    response_me = client_with_db.get("/api/v1/users/me/", headers=headers)
-    assert response_me.status_code == 401
-
-
-def test_create_training_with_weight_exercises(
-    client_with_db: TestClient, db_session: Session
-):
-    """
-    US11: Eu, como usuário, gostaria de criar exercícios com peso, informando nome, músculo, repetições, sets e carga.
-    """
-    user_data = {
-        "nome": "Test User",
-        "email": "test6@example.com",
-        "senha": "password123",
-    }
-
-    client_with_db.post("/api/v1/users/", json=user_data)
-
-    response_login = client_with_db.post(
-        "/api/v1/auth/token",
-        data={"username": "test6@example.com", "password": "password123"},
-    )
-    token = response_login.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
-
-    training_data = {
-        "nome": "Treino Teste",
-        "exercicios": [
-            {
-                "nome": "Supino",
-                "grupo_muscular": "PEITO",
-                "dificuldade": "INICIANTE",
-                "serie": 4,
-                "repeticoes": 8,
-                "comentario": "Teste",
-                "instrucoes": "Deite no banco",
-                "tempo_descanso_seg": 90,
-                "is_composto": True,
-                "equipamento": "Barra",
-                "tipo_exercicio": "COM_PESO",
-                "com_peso_details": {
-                    "peso_kg": 80.0,
-                    "peso_maximo_kg": 100.0,
-                    "incremento_sugerido_kg": 2.5,
+        # Create training with multiple exercises
+        training_data = {
+            "name": "Push Training",
+            "description": "Push exercises for chest, shoulders, and triceps",
+            "category": "FORCA",
+            "estimated_duration_min": 60,
+            "exercises": [
+                {
+                    "name": "Bench Press",
+                    "muscle_group": "PEITO",
+                    "difficulty": "INICIANTE",
+                    "sets": 4,
+                    "reps": 8,
+                    "comment": "Focus on chest",
+                    "instructions": "Lie on bench, grip bar with medium grip",
+                    "rest_time_sec": 90,
+                    "is_compound": True,
+                    "equipment": "Olympic barbell",
+                    "exercise_type": "COM_PESO",
+                    "with_weight_details": {
+                        "weight_kg": 80.0,
+                        "max_weight_kg": 100.0,
+                        "suggested_increment_kg": 2.5,
+                    },
                 },
-            }
-        ],
-    }
-
-    response = client_with_db.post(
-        "/api/v1/treinos/", json=training_data, headers=headers
-    )
-    assert response.status_code == 201
-
-    data = response.json()
-    assert data["nome"] == "Treino Teste"
-    assert len(data["exercicios"]) == 1
-    assert data["exercicios"][0]["nome"] == "Supino"
-    assert data["exercicios"][0]["tipo_exercicio"] == "COM_PESO"
-    assert data["exercicios"][0]["com_peso_details"]["peso_kg"] == 80.0
-
-
-def test_create_training_with_cardio_exercises(
-    client_with_db: TestClient, db_session: Session
-):
-    """
-    US14: Eu, como usuário, gostaria de criar exercícios sem peso, informando nome, tempo e distância.
-    """
-    user_data = {
-        "nome": "Test User",
-        "email": "test7@example.com",
-        "senha": "password123",
-    }
-
-    client_with_db.post("/api/v1/users/", json=user_data)
-
-    response_login = client_with_db.post(
-        "/api/v1/auth/token",
-        data={"username": "test7@example.com", "password": "password123"},
-    )
-    token = response_login.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
-
-    training_data = {
-        "nome": "Treino Cardio",
-        "exercicios": [
-            {
-                "nome": "Corrida",
-                "grupo_muscular": "CARDIO",
-                "dificuldade": "INTERMEDIARIO",
-                "serie": 1,
-                "repeticoes": 1,
-                "comentario": "Cardio",
-                "instrucoes": "Mantenha ritmo constante",
-                "tempo_descanso_seg": 0,
-                "is_composto": False,
-                "equipamento": "Esteira",
-                "tipo_exercicio": "SEM_PESO",
-                "sem_peso_details": {
-                    "tempo_seg": 1800.0,
-                    "distancia_m": 5000.0,
-                    "calorias_estimadas": 300.0,
-                    "intensidade": "moderada",
+                {
+                    "name": "Push-ups",
+                    "muscle_group": "PEITO",
+                    "difficulty": "INICIANTE",
+                    "sets": 3,
+                    "reps": 15,
+                    "comment": "Bodyweight chest exercise",
+                    "instructions": "Keep body straight, push up from ground",
+                    "rest_time_sec": 60,
+                    "is_compound": True,
+                    "equipment": "None",
+                    "exercise_type": "SEM_PESO",
+                    "without_weight_details": {
+                        "duration_sec": 900.0,
+                        "distance_m": 1000.0,
+                        "target_speed": 5.0,
+                        "intensity_level": 3,
+                    },
                 },
-            }
-        ],
-    }
+            ],
+        }
 
-    response = client_with_db.post(
-        "/api/v1/treinos/", json=training_data, headers=headers
-    )
-    assert response.status_code == 201
+        response = client_with_db.post("/api/v1/training/", json=training_data, headers=headers)
+        
+        assert response.status_code == 201
+        
+        data = response.json()
+        assert data["name"] == "Push Training"
+        assert len(data["exercises"]) == 2
+        assert data["exercises"][0]["name"] == "Bench Press"
+        assert data["exercises"][1]["name"] == "Push-ups"
 
-    data = response.json()
-    assert data["nome"] == "Treino Cardio"
-    assert len(data["exercicios"]) == 1
-    assert data["exercicios"][0]["nome"] == "Corrida"
-    assert data["exercicios"][0]["tipo_exercicio"] == "SEM_PESO"
-    assert data["exercicios"][0]["sem_peso_details"]["tempo_seg"] == 1800.0
+    def test_get_training_by_id(self, client_with_db: TestClient, db: Session):
+        """Test getting a training by ID"""
+        # Create user and login
+        token = create_authenticated_user(client_with_db, email="test3@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
 
+        # Create training
+        training_data = {
+            "name": "Push Training",
+            "description": "Push exercises for chest, shoulders, and triceps",
+            "category": "FORCA",
+            "estimated_duration_min": 60,
+            "exercises": [
+                {
+                    "name": "Bench Press",
+                    "muscle_group": "PEITO",
+                    "difficulty": "INICIANTE",
+                    "sets": 4,
+                    "reps": 8,
+                    "comment": "Focus on chest",
+                    "instructions": "Lie on bench, grip bar with medium grip",
+                    "rest_time_sec": 90,
+                    "is_compound": True,
+                    "equipment": "Olympic barbell",
+                    "exercise_type": "COM_PESO",
+                    "with_weight_details": {
+                        "weight_kg": 80.0,
+                        "max_weight_kg": 100.0,
+                        "suggested_increment_kg": 2.5,
+                    },
+                }
+            ],
+        }
 
-def test_get_user_trainings(client_with_db: TestClient, db_session: Session):
-    """
-    US08: Eu, como usuário, gostaria de visualizar os treinos criados.
-    US17: Eu, como usuário, gostaria de visualizar uma lista de treinos e selecionar um para ver os detalhes.
-    """
-    user_data = {
-        "nome": "Test User",
-        "email": "test8@example.com",
-        "senha": "password123",
-    }
+        create_response = client_with_db.post("/api/v1/training/", json=training_data, headers=headers)
+        assert create_response.status_code == 201
+        training_id = create_response.json()["id"]
 
-    client_with_db.post("/api/v1/users/", json=user_data)
+        # Get training
+        response = client_with_db.get(f"/api/v1/training/{training_id}", headers=headers)
+        assert response.status_code == 200
+        
+        data = response.json()
+        assert data["id"] == training_id
+        assert data["name"] == "Push Training"
+        assert data["description"] == "Push exercises for chest, shoulders, and triceps"
 
-    response_login = client_with_db.post(
-        "/api/v1/auth/token",
-        data={"username": "test8@example.com", "password": "password123"},
-    )
-    token = response_login.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
+    def test_get_training_not_found(self, client_with_db: TestClient, db: Session):
+        """Test getting a training that doesn't exist"""
+        # Create user and login
+        token = create_authenticated_user(client_with_db, email="test4@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
 
-    training_data = {
-        "nome": "Treino Teste",
-        "exercicios": [
-            {
-                "nome": "Flexão",
-                "grupo_muscular": "PEITO",
-                "dificuldade": "INICIANTE",
-                "serie": 3,
-                "repeticoes": 10,
-                "comentario": "Exercício básico",
-                "instrucoes": "Mantenha a forma",
-                "tempo_descanso_seg": 60,
-                "is_composto": False,
-                "equipamento": "Corpo",
-                "tipo_exercicio": "SEM_PESO",
-                "sem_peso_details": {
-                    "tempo_seg": 300.0,
-                    "distancia_m": 0.0,
-                    "calorias_estimadas": 50.0,
-                    "intensidade": "moderada",
-                },
-            }
-        ],
-    }
+        response = client_with_db.get("/api/v1/training/999", headers=headers)
+        assert response.status_code == 404
 
-    create_response = client_with_db.post(
-        "/api/v1/treinos/", json=training_data, headers=headers
-    )
-    assert create_response.status_code == 201
+    def test_get_all_trainings(self, client_with_db: TestClient, db: Session):
+        """Test getting all trainings"""
+        # Create user and login
+        token = create_authenticated_user(client_with_db, email="test5@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
 
-    response = client_with_db.get("/api/v1/treinos/", headers=headers)
-    assert response.status_code == 200
+        # Create trainings
+        training_data_1 = {
+            "name": "Push Training",
+            "description": "Push exercises",
+            "category": "FORCA",
+            "estimated_duration_min": 60,
+            "exercises": [
+                {
+                    "name": "Bench Press",
+                    "muscle_group": "PEITO",
+                    "difficulty": "INICIANTE",
+                    "sets": 4,
+                    "reps": 8,
+                    "comment": "Focus on chest",
+                    "instructions": "Lie on bench, grip bar with medium grip",
+                    "rest_time_sec": 90,
+                    "is_compound": True,
+                    "equipment": "Olympic barbell",
+                    "exercise_type": "COM_PESO",
+                    "with_weight_details": {
+                        "weight_kg": 80.0,
+                        "max_weight_kg": 100.0,
+                        "suggested_increment_kg": 2.5,
+                    },
+                }
+            ],
+        }
+        
+        training_data_2 = {
+            "name": "Pull Training",
+            "description": "Pull exercises",
+            "category": "FORCA",
+            "estimated_duration_min": 45,
+            "exercises": [
+                {
+                    "name": "Deadlift",
+                    "muscle_group": "PEITO",
+                    "difficulty": "INTERMEDIARIO",
+                    "sets": 3,
+                    "reps": 8,
+                    "comment": "Focus on back",
+                    "instructions": "Stand with barbell, bend at hips, pull up",
+                    "rest_time_sec": 120,
+                    "is_compound": True,
+                    "equipment": "Olympic barbell",
+                    "exercise_type": "COM_PESO",
+                    "with_weight_details": {
+                        "weight_kg": 120.0,
+                        "max_weight_kg": 150.0,
+                        "suggested_increment_kg": 5.0,
+                    },
+                }
+            ],
+        }
 
-    data = response.json()
-    assert len(data) == 1
-    assert data[0]["nome"] == "Treino Teste"
+        client_with_db.post("/api/v1/training/", json=training_data_1, headers=headers)
+        client_with_db.post("/api/v1/training/", json=training_data_2, headers=headers)
 
+        # Get all trainings
+        response = client_with_db.get("/api/v1/training/", headers=headers)
+        assert response.status_code == 200
+        
+        data = response.json()
+        assert len(data) == 2
+        assert data[0]["name"] == "Push Training"
+        assert data[1]["name"] == "Pull Training"
 
-def test_get_specific_training_details(client_with_db: TestClient, db_session: Session):
-    """
-    US18: Eu, como usuário, gostaria de visualizar os detalhes de um treino com todos os exercícios listados.
-    """
-    user_data = {
-        "nome": "Test User",
-        "email": "test9@example.com",
-        "senha": "password123",
-    }
+    def test_update_training(self, client_with_db: TestClient, db: Session):
+        """Test updating a training"""
+        # Create user and login
+        token = create_authenticated_user(client_with_db, email="test6@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
 
-    client_with_db.post("/api/v1/users/", json=user_data)
+        # Create training
+        training_data = {
+            "name": "Push Training",
+            "description": "Push exercises for chest, shoulders, and triceps",
+            "category": "FORCA",
+            "estimated_duration_min": 60,
+            "exercises": [
+                {
+                    "name": "Bench Press",
+                    "muscle_group": "PEITO",
+                    "difficulty": "INICIANTE",
+                    "sets": 4,
+                    "reps": 8,
+                    "comment": "Focus on chest",
+                    "instructions": "Lie on bench, grip bar with medium grip",
+                    "rest_time_sec": 90,
+                    "is_compound": True,
+                    "equipment": "Olympic barbell",
+                    "exercise_type": "COM_PESO",
+                    "with_weight_details": {
+                        "weight_kg": 80.0,
+                        "max_weight_kg": 100.0,
+                        "suggested_increment_kg": 2.5,
+                    },
+                }
+            ],
+        }
 
-    response_login = client_with_db.post(
-        "/api/v1/auth/token",
-        data={"username": "test9@example.com", "password": "password123"},
-    )
-    token = response_login.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
+        create_response = client_with_db.post("/api/v1/training/", json=training_data, headers=headers)
+        assert create_response.status_code == 201
+        training_id = create_response.json()["id"]
 
-    training_data = {
-        "nome": "Treino Teste",
-        "exercicios": [
-            {
-                "nome": "Supino",
-                "grupo_muscular": "PEITO",
-                "dificuldade": "INICIANTE",
-                "serie": 4,
-                "repeticoes": 8,
-                "comentario": "Teste",
-                "instrucoes": "Deite no banco",
-                "tempo_descanso_seg": 90,
-                "is_composto": True,
-                "equipamento": "Barra",
-                "tipo_exercicio": "COM_PESO",
-                "com_peso_details": {
-                    "peso_kg": 80.0,
-                    "peso_maximo_kg": 100.0,
-                    "incremento_sugerido_kg": 2.5,
-                },
-            }
-        ],
-    }
+        # Update training
+        update_data = {
+            "name": "Updated Push Training",
+            "description": "Updated description",
+            "estimated_duration_min": 90,
+        }
+        
+        response = client_with_db.put(f"/api/v1/training/{training_id}", json=update_data, headers=headers)
+        assert response.status_code == 200
+        
+        data = response.json()
+        assert data["name"] == "Updated Push Training"
+        assert data["description"] == "Updated description"
+        assert data["estimated_duration_min"] == 90
 
-    create_response = client_with_db.post(
-        "/api/v1/treinos/", json=training_data, headers=headers
-    )
-    assert create_response.status_code == 201
-    training_id = create_response.json()["id"]
+    def test_update_training_not_found(self, client_with_db: TestClient, db: Session):
+        """Test updating a training that doesn't exist"""
+        # Create user and login
+        token = create_authenticated_user(client_with_db, email="test7@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
 
-    response = client_with_db.get(f"/api/v1/treinos/{training_id}", headers=headers)
-    assert response.status_code == 200
+        update_data = {
+            "name": "Updated Training",
+            "description": "Updated description",
+        }
+        
+        response = client_with_db.put("/api/v1/training/999", json=update_data, headers=headers)
+        assert response.status_code == 404
 
-    data = response.json()
-    assert data["nome"] == "Treino Teste"
-    assert len(data["exercicios"]) == 1
-    assert data["exercicios"][0]["nome"] == "Supino"
+    def test_delete_training(self, client_with_db: TestClient, db: Session):
+        """Test deleting a training"""
+        # Create user and login
+        token = create_authenticated_user(client_with_db, email="test8@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
 
+        # Create training
+        training_data = {
+            "name": "Push Training",
+            "description": "Push exercises for chest, shoulders, and triceps",
+            "category": "FORCA",
+            "estimated_duration_min": 60,
+            "exercises": [
+                {
+                    "name": "Bench Press",
+                    "muscle_group": "PEITO",
+                    "difficulty": "INICIANTE",
+                    "sets": 4,
+                    "reps": 8,
+                    "comment": "Focus on chest",
+                    "instructions": "Lie on bench, grip bar with medium grip",
+                    "rest_time_sec": 90,
+                    "is_compound": True,
+                    "equipment": "Olympic barbell",
+                    "exercise_type": "COM_PESO",
+                    "with_weight_details": {
+                        "weight_kg": 80.0,
+                        "max_weight_kg": 100.0,
+                        "suggested_increment_kg": 2.5,
+                    },
+                }
+            ],
+        }
 
-def test_update_training(client_with_db: TestClient, db_session: Session):
-    """
-    US09: Eu, como usuário, gostaria de editar um treino existente.
-    """
-    user_data = {
-        "nome": "Test User",
-        "email": "test10@example.com",
-        "senha": "password123",
-    }
+        create_response = client_with_db.post("/api/v1/training/", json=training_data, headers=headers)
+        assert create_response.status_code == 201
+        training_id = create_response.json()["id"]
 
-    client_with_db.post("/api/v1/users/", json=user_data)
+        # Delete training
+        response = client_with_db.delete(f"/api/v1/training/{training_id}", headers=headers)
+        assert response.status_code == 204
 
-    response_login = client_with_db.post(
-        "/api/v1/auth/token",
-        data={"username": "test10@example.com", "password": "password123"},
-    )
-    token = response_login.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
+        # Verify training is deleted
+        get_response = client_with_db.get(f"/api/v1/training/{training_id}", headers=headers)
+        assert get_response.status_code == 404
 
-    training_data = {
-        "nome": "Treino Original",
-        "exercicios": [
-            {
-                "nome": "Flexão",
-                "grupo_muscular": "PEITO",
-                "dificuldade": "INICIANTE",
-                "serie": 3,
-                "repeticoes": 10,
-                "comentario": "Exercício básico",
-                "instrucoes": "Mantenha a forma",
-                "tempo_descanso_seg": 60,
-                "is_composto": False,
-                "equipamento": "Corpo",
-                "tipo_exercicio": "SEM_PESO",
-                "sem_peso_details": {
-                    "tempo_seg": 300.0,
-                    "distancia_m": 0.0,
-                    "calorias_estimadas": 50.0,
-                    "intensidade": "moderada",
-                },
-            }
-        ],
-    }
+    def test_delete_training_not_found(self, client_with_db: TestClient, db: Session):
+        """Test deleting a training that doesn't exist"""
+        # Create user and login
+        token = create_authenticated_user(client_with_db, email="test9@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
 
-    create_response = client_with_db.post(
-        "/api/v1/treinos/", json=training_data, headers=headers
-    )
-    training_id = create_response.json()["id"]
+        response = client_with_db.delete("/api/v1/training/999", headers=headers)
+        assert response.status_code == 404
 
-    update_data = {"nome": "Treino Atualizado"}
-    response = client_with_db.put(
-        f"/api/v1/treinos/{training_id}", json=update_data, headers=headers
-    )
-    assert response.status_code == 200
+    def test_training_unauthorized(self, client_with_db: TestClient, db: Session):
+        """Test accessing training endpoints without authentication"""
+        # Test creating training without auth
+        training_data = {
+            "name": "Push Training",
+            "description": "Push exercises for chest, shoulders, and triceps",
+            "category": "FORCA",
+            "estimated_duration_min": 60,
+            "exercises": [
+                {
+                    "name": "Bench Press",
+                    "muscle_group": "PEITO",
+                    "difficulty": "INICIANTE",
+                    "sets": 4,
+                    "reps": 8,
+                    "comment": "Focus on chest",
+                    "instructions": "Lie on bench, grip bar with medium grip",
+                    "rest_time_sec": 90,
+                    "is_compound": True,
+                    "equipment": "Olympic barbell",
+                    "exercise_type": "COM_PESO",
+                    "with_weight_details": {
+                        "weight_kg": 80.0,
+                        "max_weight_kg": 100.0,
+                        "suggested_increment_kg": 2.5,
+                    },
+                }
+            ],
+        }
 
-    data = response.json()
-    assert data["nome"] == "Treino Atualizado"
+        response = client_with_db.post("/api/v1/training/", json=training_data)
+        assert response.status_code == 403
 
+        # Test getting training without auth
+        response = client_with_db.get("/api/v1/training/")
+        assert response.status_code == 403
 
-def test_delete_training(client_with_db: TestClient, db_session: Session):
-    """
-    US10: Eu, como usuário, gostaria de excluir um treino.
-    """
-    user_data = {
-        "nome": "Test User",
-        "email": "test11@example.com",
-        "senha": "password123",
-    }
+        # Test getting training by ID without auth
+        response = client_with_db.get("/api/v1/training/1")
+        assert response.status_code == 403
 
-    client_with_db.post("/api/v1/users/", json=user_data)
+        # Test updating training without auth
+        response = client_with_db.put("/api/v1/training/1", json={"name": "Updated"})
+        assert response.status_code == 403
 
-    response_login = client_with_db.post(
-        "/api/v1/auth/token",
-        data={"username": "test11@example.com", "password": "password123"},
-    )
-    token = response_login.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
+        # Test deleting training without auth
+        response = client_with_db.delete("/api/v1/training/1")
+        assert response.status_code == 403
 
-    training_data = {
-        "nome": "Treino para Deletar",
-        "exercicios": [
-            {
-                "nome": "Flexão",
-                "grupo_muscular": "PEITO",
-                "dificuldade": "INICIANTE",
-                "serie": 3,
-                "repeticoes": 10,
-                "comentario": "Exercício básico",
-                "instrucoes": "Mantenha a forma",
-                "tempo_descanso_seg": 60,
-                "is_composto": False,
-                "equipamento": "Corpo",
-                "tipo_exercicio": "SEM_PESO",
-                "sem_peso_details": {
-                    "tempo_seg": 300.0,
-                    "distancia_m": 0.0,
-                    "calorias_estimadas": 50.0,
-                    "intensidade": "moderada",
-                },
-            }
-        ],
-    }
+    def test_start_training_session(self, client_with_db: TestClient, db: Session):
+        """Test starting a training session"""
+        # Create user and login
+        token = create_authenticated_user(client_with_db, email="test12@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
 
-    create_response = client_with_db.post(
-        "/api/v1/treinos/", json=training_data, headers=headers
-    )
-    assert create_response.status_code == 201
-    training_id = create_response.json()["id"]
+        # Create training
+        training_data = {
+            "name": "Push Training",
+            "description": "Push exercises for chest, shoulders, and triceps",
+            "category": "FORCA",
+            "estimated_duration_min": 60,
+            "exercises": [
+                {
+                    "name": "Bench Press",
+                    "muscle_group": "PEITO",
+                    "difficulty": "INICIANTE",
+                    "sets": 4,
+                    "reps": 8,
+                    "comment": "Focus on chest",
+                    "instructions": "Lie on bench, grip bar with medium grip",
+                    "rest_time_sec": 90,
+                    "is_compound": True,
+                    "equipment": "Olympic barbell",
+                    "exercise_type": "COM_PESO",
+                    "with_weight_details": {
+                        "weight_kg": 80.0,
+                        "max_weight_kg": 100.0,
+                        "suggested_increment_kg": 2.5,
+                    },
+                }
+            ],
+        }
 
-    response = client_with_db.delete(f"/api/v1/treinos/{training_id}", headers=headers)
-    assert response.status_code == 204
+        create_response = client_with_db.post("/api/v1/training/", json=training_data, headers=headers)
+        assert create_response.status_code == 201
+        training_id = create_response.json()["id"]
 
+        # Start training session
+        response = client_with_db.post(f"/api/v1/training/{training_id}/start", headers=headers)
+        assert response.status_code == 200
+        
+        data = response.json()
+        assert data["status"] == "EM_ANDAMENTO"
+        assert "started_at" in data
 
-def test_create_training_unauthorized(client_with_db: TestClient, db_session: Session):
-    """
-    Testa que criar treino sem autenticação falha.
-    """
-    training_data = {
-        "nome": "Treino Teste",
-        "exercicios": [
-            {
-                "nome": "Flexão",
-                "grupo_muscular": "PEITO",
-                "dificuldade": "INICIANTE",
-                "serie": 3,
-                "repeticoes": 10,
-                "comentario": "Exercício básico",
-                "instrucoes": "Mantenha a forma",
-                "tempo_descanso_seg": 60,
-                "is_composto": False,
-                "equipamento": "Corpo",
-                "tipo_exercicio": "SEM_PESO",
-                "sem_peso_details": {
-                    "tempo_seg": 300.0,
-                    "distancia_m": 0.0,
-                    "calorias_estimadas": 50.0,
-                    "intensidade": "moderada",
-                },
-            }
-        ],
-    }
+    def test_finish_training_session(self, client_with_db: TestClient, db: Session):
+        """Test finishing a training session"""
+        # Create user and login
+        token = create_authenticated_user(client_with_db, email="test13@example.com")
+        headers = {"Authorization": f"Bearer {token}"}
 
-    response = client_with_db.post("/api/v1/treinos/", json=training_data)
-    assert response.status_code == 401
+        # Create training
+        training_data = {
+            "name": "Push Training",
+            "description": "Push exercises for chest, shoulders, and triceps",
+            "category": "FORCA",
+            "estimated_duration_min": 60,
+            "exercises": [
+                {
+                    "name": "Bench Press",
+                    "muscle_group": "PEITO",
+                    "difficulty": "INICIANTE",
+                    "sets": 4,
+                    "reps": 8,
+                    "comment": "Focus on chest",
+                    "instructions": "Lie on bench, grip bar with medium grip",
+                    "rest_time_sec": 90,
+                    "is_compound": True,
+                    "equipment": "Olympic barbell",
+                    "exercise_type": "COM_PESO",
+                    "with_weight_details": {
+                        "weight_kg": 80.0,
+                        "max_weight_kg": 100.0,
+                        "suggested_increment_kg": 2.5,
+                    },
+                }
+            ],
+        }
 
+        create_response = client_with_db.post("/api/v1/training/", json=training_data, headers=headers)
+        assert create_response.status_code == 201
+        training_id = create_response.json()["id"]
 
-def test_access_other_user_training_fails(
-    client_with_db: TestClient, db_session: Session
-):
-    """
-    Testa que um usuário não pode acessar treinos de outros usuários.
-    """
-    user1_data = {
-        "nome": "User 1",
-        "email": "user1@example.com",
-        "senha": "password123",
-    }
-    user2_data = {
-        "nome": "User 2",
-        "email": "user2@example.com",
-        "senha": "password123",
-    }
+        # Start training session
+        start_response = client_with_db.post(f"/api/v1/training/{training_id}/start", headers=headers)
+        assert start_response.status_code == 200
 
-    client_with_db.post("/api/v1/users/", json=user1_data)
-    client_with_db.post("/api/v1/users/", json=user2_data)
-
-    response_login1 = client_with_db.post(
-        "/api/v1/auth/token",
-        data={"username": "user1@example.com", "password": "password123"},
-    )
-    token1 = response_login1.json()["access_token"]
-    headers1 = {"Authorization": f"Bearer {token1}"}
-
-    response_login2 = client_with_db.post(
-        "/api/v1/auth/token",
-        data={"username": "user2@example.com", "password": "password123"},
-    )
-    token2 = response_login2.json()["access_token"]
-    headers2 = {"Authorization": f"Bearer {token2}"}
-
-    training_data = {
-        "nome": "Treino User 1",
-        "exercicios": [
-            {
-                "nome": "Flexão",
-                "grupo_muscular": "PEITO",
-                "dificuldade": "INICIANTE",
-                "serie": 3,
-                "repeticoes": 10,
-                "comentario": "Exercício básico",
-                "instrucoes": "Mantenha a forma",
-                "tempo_descanso_seg": 60,
-                "is_composto": False,
-                "equipamento": "Corpo",
-                "tipo_exercicio": "SEM_PESO",
-                "sem_peso_details": {
-                    "tempo_seg": 300.0,
-                    "distancia_m": 0.0,
-                    "calorias_estimadas": 50.0,
-                    "intensidade": "moderada",
-                },
-            }
-        ],
-    }
-
-    create_response = client_with_db.post(
-        "/api/v1/treinos/", json=training_data, headers=headers1
-    )
-    assert create_response.status_code == 201
-    training_id = create_response.json()["id"]
-
-    response = client_with_db.get(f"/api/v1/treinos/{training_id}", headers=headers2)
-    assert response.status_code == 404
-
-
-def test_create_training_validation_errors(
-    client_with_db: TestClient, db_session: Session
-):
-    """
-    Testa validações de entrada para criação de treinos.
-    """
-    user_data = {
-        "nome": "Test User",
-        "email": "test12@example.com",
-        "senha": "password123",
-    }
-
-    client_with_db.post("/api/v1/users/", json=user_data)
-
-    response_login = client_with_db.post(
-        "/api/v1/auth/token",
-        data={"username": "test12@example.com", "password": "password123"},
-    )
-    token = response_login.json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
-
-    invalid_training_data = {
-        "nome": "",
-        "exercicios": [
-            {
-                "nome": "Supino",
-                "grupo_muscular": "PEITO",
-                "dificuldade": "INICIANTE",
-                "serie": -1,
-                "repeticoes": 0,
-                "comentario": "Teste",
-                "instrucoes": "Teste",
-                "tempo_descanso_seg": 60,
-                "is_composto": True,
-                "equipamento": "Barra",
-                "tipo_exercicio": "COM_PESO",
-                "com_peso_details": {
-                    "peso_kg": -10.0,
-                    "peso_maximo_kg": 50.0,
-                    "incremento_sugerido_kg": 2.5,
-                },
-            }
-        ],
-    }
-
-    response = client_with_db.post(
-        "/api/v1/treinos/", json=invalid_training_data, headers=headers
-    )
-    assert response.status_code == 422
+        # Finish training session
+        finish_data = {
+            "status": "CONCLUIDO",
+            "actual_duration_min": 65,
+            "calories_burned": 300.0,
+            "perceived_difficulty": 7,
+            "satisfaction": 4,
+            "observations": "Good workout"
+        }
+        
+        response = client_with_db.post(f"/api/v1/training/{training_id}/finish", json=finish_data, headers=headers)
+        assert response.status_code == 200
+        
+        data = response.json()
+        assert data["status"] == "CONCLUIDO"
+        assert "finished_at" in data

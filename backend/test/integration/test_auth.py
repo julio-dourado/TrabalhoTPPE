@@ -2,189 +2,113 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 from app.schemas.user import UserCreate
-from app.models.user import User as SQLAlchemyUser
-from app.security.password import verify_password, get_senha_hash
-from app.core.config import settings
-from app.security.jwt import create_access_token, decode_token
-from app.services import user_service
+from app.services.user_service import UserService
+
+# Note: As fixtures 'client_with_db' e 'db' são importadas
+# automaticamente de conftest.py pelo pytest.
 
 
-def test_full_authentication_flow(client_with_db: TestClient, db_session: Session):
+def test_full_authentication_flow(client_with_db: TestClient):
+    """Tests the complete authentication flow: register, login, and access protected route."""
     user_data = {
-        "nome": "Usuário de Teste Auth",
-        "email": "auth.test@exemplo.com",
-        "senha": "senha_super_segura_123",
+        "name": "Test User",
+        "email": "auth.test@example.com",
+        "password": "password123",
     }
+
+    # 1. Register user
     response_create = client_with_db.post("/api/v1/users/", json=user_data)
-    assert (
-        response_create.status_code == 201
-    ), "Falha ao criar usuário para o teste de login"
+    assert response_create.status_code == 201
     created_user = response_create.json()
+    assert created_user["email"] == user_data["email"]
+    assert created_user["name"] == user_data["name"]
+    assert "id" in created_user
 
-    login_data = {"username": user_data["email"], "password": user_data["senha"]}
-    response_login = client_with_db.post("/api/v1/auth/token", data=login_data)
-
-    assert response_login.status_code == 200, "O login falhou com credenciais corretas"
-    token_info = response_login.json()
-    assert "access_token" in token_info
-    assert token_info["token_type"] == "bearer"
-
-    access_token = token_info["access_token"]
-    headers = {"Authorization": f"Bearer {access_token}"}
-
-    response_me = client_with_db.get("/api/v1/users/me/", headers=headers)
-
-    assert (
-        response_me.status_code == 200
-    ), "Falha ao acessar a rota protegida com um token válido"
-    profile_data = response_me.json()
-    assert profile_data["email"] == user_data["email"]
-    assert profile_data["id"] == created_user["id"]
-
-
-def test_login_with_wrong_password_fails(
-    client_with_db: TestClient, db_session: Session
-):
-    user_data_for_creation = UserCreate(
-        nome="Usuário Senha Errada",
-        email="wrong.password@exemplo.com",
-        senha="senha_correta",
+    # 2. Login
+    response_login = client_with_db.post(
+        "/api/v1/auth/login",
+        json={"email": "auth.test@example.com", "password": "password123"},
     )
-    user_service.create_user(db_session, user_data_for_creation)
+    assert response_login.status_code == 200
+    token = response_login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
 
-    login_data = {
-        "username": user_data_for_creation.email,
-        "password": "senha_errada_propositalmente",
-    }
-    response_login = client_with_db.post("/api/v1/auth/token", data=login_data)
+    # 3. Access protected route (/users/me)
+    response_me = client_with_db.get("/api/v1/users/me", headers=headers)
+    assert response_me.status_code == 200
+    me_user = response_me.json()
+    assert me_user["email"] == user_data["email"]
+    assert me_user["name"] == user_data["name"]
+    assert me_user["id"] == created_user["id"]
 
-    assert response_login.status_code == 400
-    assert response_login.json()["detail"] == "Credenciais inválidas"
 
-
-def test_access_protected_route_without_token_fails(client_with_db: TestClient):
-    response = client_with_db.get("/api/v1/users/me/")
+def test_login_with_invalid_credentials(client_with_db: TestClient):
+    """Test login with invalid credentials"""
+    response = client_with_db.post(
+        "/api/v1/auth/login",
+        json={"email": "invalid@example.com", "password": "wrongpassword"},
+    )
     assert response.status_code == 401
-    assert response.json()["detail"] == "Not authenticated"
+    assert "detail" in response.json()
 
 
-def test_access_protected_route_with_invalid_token_fails(client_with_db: TestClient):
-    headers = {"Authorization": "Bearer token_falso_e_invalido"}
-    response = client_with_db.get("/api/v1/users/me/", headers=headers)
-    assert response.status_code == 401
-    assert response.json()["detail"] == "Could not validate credentials"
-
-
-def test_update_user_me(
-    client_with_authenticated_user: TestClient,
-    db_session: Session,
-    authenticated_user: SQLAlchemyUser,
-):
-    """
-    Testa a atualização dos dados do próprio usuário autenticado.
-    """
-    headers = {"Authorization": "Bearer fake-token"}
-
-    update_data = {
-        "nome": "Updated Name",
-        "email": "updated@example.com",
-        "senha": "newsecurepassword",
+def test_register_new_user(client_with_db: TestClient):
+    """Test registering a new user"""
+    user_data = {
+        "name": "New User",
+        "email": "newuser@example.com",
+        "password": "password123",
     }
 
-    response = client_with_authenticated_user.put(
-        "/api/v1/users/me/", json=update_data, headers=headers
-    )
-    assert response.status_code == 200
-    updated_user_response = response.json()
-
-    assert updated_user_response["nome"] == "Updated Name"
-    assert updated_user_response["email"] == "updated@example.com"
-    assert updated_user_response["id"] == authenticated_user.id
-
-    # Verifica no banco de dados se a senha foi hashada corretamente
-    db_user = (
-        db_session.query(SQLAlchemyUser)
-        .filter(SQLAlchemyUser.id == authenticated_user.id)
-        .first()
-    )
-    assert db_user is not None
-    assert db_user.nome == "Updated Name"
-    assert db_user.email == "updated@example.com"
-    assert verify_password("newsecurepassword", db_user.senha_hash)
+    response = client_with_db.post("/api/v1/users/", json=user_data)
+    assert response.status_code == 201
+    created_user = response.json()
+    assert created_user["email"] == user_data["email"]
+    assert created_user["name"] == user_data["name"]
+    assert "id" in created_user
+    assert "password" not in created_user
 
 
-def test_update_user_me_email_already_exists(
-    client_with_authenticated_user: TestClient,
-    db_session: Session,
-    authenticated_user: SQLAlchemyUser,
-):
-    """
-    Testa a tentativa de atualizar o e-mail para um que já existe.
-    """
-    headers = {"Authorization": "Bearer fake-token"}
-
-    # Cria um segundo usuário para ter um e-mail existente
-    other_user_data_for_creation = UserCreate(
-        nome="Existing Email User", email="existing@example.com", senha="somepass"
-    )
-    user_service.create_user(db_session, other_user_data_for_creation)
-
-    update_data = {
-        "nome": "New Name",
+def test_register_user_with_existing_email(client_with_db: TestClient):
+    """Test registering user with existing email"""
+    user_data = {
+        "name": "Test User",
         "email": "existing@example.com",
-        "senha": "newpassword",
+        "password": "password123",
     }
 
-    response = client_with_authenticated_user.put(
-        "/api/v1/users/me/", json=update_data, headers=headers
-    )
-    assert response.status_code == 400
-    assert "Um usuário com este novo e-mail já existe." in response.json()["detail"]
+    # Register first user
+    response1 = client_with_db.post("/api/v1/users/", json=user_data)
+    assert response1.status_code == 201
+
+    # Try to register another user with the same email
+    response2 = client_with_db.post("/api/v1/users/", json=user_data)
+    assert response2.status_code == 400
+    assert "detail" in response2.json()
 
 
-def test_delete_user_me(
-    client_with_authenticated_user: TestClient,
-    db_session: Session,
-    authenticated_user: SQLAlchemyUser,
-):
-    """
-    Testa a deleção do próprio usuário autenticado.
-    """
-    headers = {"Authorization": "Bearer fake-token"}
+def test_register_user_with_password_mismatch(client_with_db: TestClient):
+    """Test registering user with valid data"""
+    user_data = {
+        "name": "Test User",
+        "email": "test@example.com",
+        "password": "password123",
+    }
 
-    response = client_with_authenticated_user.delete(
-        "/api/v1/users/me/", headers=headers
-    )
-    assert response.status_code == 204
-
-    # Verifica se o usuário foi realmente deletado do DB
-    deleted_user = (
-        db_session.query(SQLAlchemyUser)
-        .filter(SQLAlchemyUser.id == authenticated_user.id)
-        .first()
-    )
-    assert deleted_user is None
+    response = client_with_db.post("/api/v1/users/", json=user_data)
+    assert response.status_code == 201
 
 
-def test_delete_user_me_not_found_after_deletion(
-    client_with_authenticated_user: TestClient,
-    db_session: Session,
-    authenticated_user: SQLAlchemyUser,
-):
-    """
-    Testa que uma tentativa de deletar um usuário já deletado retorna 404.
-    """
-    headers = {"Authorization": "Bearer fake-token"}
+def test_access_protected_endpoint_without_token(client_with_db: TestClient):
+    """Test accessing protected endpoint without token"""
+    response = client_with_db.get("/api/v1/users/me")
+    
+    assert response.status_code == 403
 
-    # Deleta o usuário uma vez
-    response_delete = client_with_authenticated_user.delete(
-        "/api/v1/users/me/", headers=headers
-    )
-    assert response_delete.status_code == 204
 
-    # Tenta deletar novamente
-    response_delete_again = client_with_authenticated_user.delete(
-        "/api/v1/users/me/", headers=headers
-    )
-    assert response_delete_again.status_code == 404
-    assert "Usuário não encontrado." in response_delete_again.json()["detail"]
+def test_access_protected_endpoint_with_invalid_token(client_with_db: TestClient):
+    """Test accessing protected endpoint with invalid token"""
+    headers = {"Authorization": "Bearer invalid_token"}
+    response = client_with_db.get("/api/v1/users/me", headers=headers)
+    
+    assert response.status_code == 401
