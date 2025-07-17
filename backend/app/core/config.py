@@ -6,112 +6,109 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    """Configurações da aplicação com validação e suporte a múltiplos ambientes"""
-    
-    # Configurações da aplicação
-    APP_NAME: str = "API de Treinos"
+
+    APP_NAME: str = "Training API"
     APP_VERSION: str = "1.0.0"
-    ENVIRONMENT: str = Field(default="development", description="Ambiente de execução")
-    DEBUG: bool = Field(default=False, description="Modo debug")
-    
-    # Configurações do banco de dados
-    POSTGRES_USER: str = Field(default="test_user", description="Usuário do PostgreSQL")
-    POSTGRES_PASSWORD: str = Field(default="test_password", description="Senha do PostgreSQL")
-    POSTGRES_DB: str = Field(default="test_db", description="Nome do banco PostgreSQL")
-    POSTGRES_HOST: str = Field(default="localhost", description="Host do PostgreSQL")
-    POSTGRES_PORT: int = Field(default=5432, description="Porta do PostgreSQL")
-    
-    # URL do banco (calculada automaticamente)
+    ENVIRONMENT: str = Field(default="development", description="Runtime environment")
+    DEBUG: bool = Field(default=False, description="Debug mode")
+
+    # Database configuration
+    POSTGRES_USER: str = Field(default="test_user", description="PostgreSQL user")
+    POSTGRES_PASSWORD: str = Field(
+        default="test_password", description="PostgreSQL password"
+    )
+    POSTGRES_DB: str = Field(default="test_db", description="PostgreSQL database name")
+    POSTGRES_HOST: str = Field(default="localhost", description="PostgreSQL host")
+    POSTGRES_PORT: int = Field(default=5432, description="PostgreSQL port")
+
+    # Database URL (automatically calculated)
     DATABASE_URL: Optional[str] = None
-    
-    # Configurações de segurança
+
+    # Security configuration
     SECRET_KEY: str = Field(
         default="dev_secret_key_change_in_production",
         min_length=32,
-        description="Chave secreta para JWT"
+        description="Secret key for JWT",
     )
-    ALGORITHM: str = Field(default="HS256", description="Algoritmo de criptografia")
+    ALGORITHM: str = Field(default="HS256", description="Encryption algorithm")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
-        default=30, 
-        ge=1, 
-        le=10080,  # máximo 1 semana
-        description="Tempo de expiração do token em minutos"
+        default=30,
+        ge=1,
+        le=10080,  # maximum 1 week
+        description="Token expiration time in minutes",
     )
-    
-    # Configurações de CORS
+
+    # CORS configuration
     ALLOWED_ORIGINS: List[str] = Field(
         default=["http://localhost:3000", "http://localhost:8080"],
-        description="Origens permitidas para CORS"
+        description="Allowed origins for CORS",
     )
-    
-    # Configurações de logging
-    LOG_LEVEL: str = Field(default="INFO", description="Nível de log")
+
+    # Logging configuration
+    LOG_LEVEL: str = Field(default="INFO", description="Log level")
     LOG_FORMAT: str = Field(
         default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        description="Formato do log"
+        description="Log format",
     )
-    
-    # Configurações de arquivo
-    UPLOAD_DIR: str = Field(default="uploads", description="Diretório de uploads")
-    MAX_FILE_SIZE: int = Field(default=10_000_000, description="Tamanho máximo de arquivo em bytes")
-    
+
+    # File configuration
+    UPLOAD_DIR: str = Field(default="uploads", description="Upload directory")
+    MAX_FILE_SIZE: int = Field(
+        default=10_000_000, description="Maximum file size in bytes"
+    )
+
     @validator("DATABASE_URL", pre=True, always=True)
     def build_database_url(cls, v, values):
-        """Constrói a URL do banco automaticamente se não fornecida"""
         if v:
             return v
-        
+
         environment = values.get("ENVIRONMENT", "development")
-        
+
         if environment == "test":
             return "sqlite:///./test.db"
         elif environment == "development":
             return "sqlite:///./development.db"
         else:
-            # Produção usa PostgreSQL
+            # Production uses PostgreSQL
             user = values.get("POSTGRES_USER")
             password = values.get("POSTGRES_PASSWORD")
             host = values.get("POSTGRES_HOST")
             port = values.get("POSTGRES_PORT")
             db = values.get("POSTGRES_DB")
             return f"postgresql://{user}:{password}@{host}:{port}/{db}"
-    
+
     @validator("ENVIRONMENT")
     def validate_environment(cls, v):
-        """Valida se o ambiente é válido"""
+        """Validate if the environment is valid"""
         allowed_envs = ["development", "test", "staging", "production"]
         if v not in allowed_envs:
-            raise ValueError(f"Environment deve ser um de: {allowed_envs}")
+            raise ValueError(f"Environment must be one of: {allowed_envs}")
         return v
-    
+
     @validator("SECRET_KEY")
     def validate_secret_key(cls, v, values):
-        """Valida a chave secreta em produção"""
+        """Validate the secret key in production"""
         environment = values.get("ENVIRONMENT", "development")
         if environment == "production" and v == "dev_secret_key_change_in_production":
-            raise ValueError("SECRET_KEY deve ser alterada em produção!")
+            raise ValueError("SECRET_KEY must be changed in production!")
         return v
-    
+
     @property
     def is_development(self) -> bool:
-        """Verifica se está em ambiente de desenvolvimento"""
         return self.ENVIRONMENT == "development"
-    
+
     @property
     def is_production(self) -> bool:
-        """Verifica se está em ambiente de produção"""
         return self.ENVIRONMENT == "production"
-    
+
     @property
     def is_test(self) -> bool:
-        """Verifica se está em ambiente de teste"""
         return self.ENVIRONMENT == "test"
-    
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = True
 
 
-# Instância global das configurações
 settings = Settings()
