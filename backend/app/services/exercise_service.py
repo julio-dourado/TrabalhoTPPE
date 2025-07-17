@@ -3,206 +3,217 @@ from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select
 from datetime import datetime
 
-from app.models.exercise import Exercicio, ComPeso, SemPeso, TipoExercicio
-from app.models.training import Treino
-from app.schemas.exercise import ExercicioCreate, ExercicioUpdate, ExercicioOut, ComPesoOut, SemPesoOut
+from app.models.exercise import Exercise, WithWeight, WithoutWeight, ExerciseType
+from app.models.training import Training
+from app.schemas.exercise import (
+    ExerciseCreate,
+    ExerciseUpdate,
+    ExerciseOut,
+    WithWeightOut,
+    WithoutWeightOut,
+)
 
-def _convert_exercicio_model_to_out_schema(exercicio_model: Exercicio) -> ExercicioOut:
-    """Converte modelo de exercício para schema de saída"""
-    com_peso_out = None
-    sem_peso_out = None
-    
-    if exercicio_model.tipo_exercicio == TipoExercicio.COM_PESO and exercicio_model.com_peso_details:
-        com_peso_out = ComPesoOut.model_validate(exercicio_model.com_peso_details)
-    elif exercicio_model.tipo_exercicio == TipoExercicio.SEM_PESO and exercicio_model.sem_peso_details:
-        sem_peso_out = SemPesoOut.model_validate(exercicio_model.sem_peso_details)
-    
-    return ExercicioOut(
-        id=exercicio_model.id,
-        nome=exercicio_model.nome,
-        grupo_muscular=exercicio_model.grupo_muscular,
-        dificuldade=exercicio_model.dificuldade,
-        serie=exercicio_model.serie,
-        repeticoes=exercicio_model.repeticoes,
-        comentario=exercicio_model.comentario,
-        instrucoes=exercicio_model.instrucoes,
-        tempo_descanso_seg=exercicio_model.tempo_descanso_seg,
-        is_composto=exercicio_model.is_composto,
-        equipamento=exercicio_model.equipamento,
-        tipo_exercicio=exercicio_model.tipo_exercicio,
-        com_peso_details=com_peso_out,
-        sem_peso_details=sem_peso_out,
-        created_at=exercicio_model.created_at,
-        updated_at=exercicio_model.updated_at
+
+def _convert_exercise_model_to_out_schema(exercise_model: Exercise) -> ExerciseOut:
+    """Convert exercise model to output schema"""
+    with_weight_out = None
+    without_weight_out = None
+
+    if (
+        exercise_model.exercise_type == ExerciseType.WITH_WEIGHT
+        and exercise_model.with_weight_details
+    ):
+        with_weight_out = WithWeightOut.model_validate(exercise_model.with_weight_details)
+    elif (
+        exercise_model.exercise_type == ExerciseType.WITHOUT_WEIGHT
+        and exercise_model.without_weight_details
+    ):
+        without_weight_out = WithoutWeightOut.model_validate(exercise_model.without_weight_details)
+
+    return ExerciseOut(
+        id=exercise_model.id,
+        name=exercise_model.name,
+        muscle_group=exercise_model.muscle_group,
+        difficulty=exercise_model.difficulty,
+        sets=exercise_model.sets,
+        reps=exercise_model.reps,
+        comment=exercise_model.comment,
+        instructions=exercise_model.instructions,
+        rest_time_sec=exercise_model.rest_time_sec,
+        is_compound=exercise_model.is_compound,
+        equipment=exercise_model.equipment,
+        exercise_type=exercise_model.exercise_type,
+        with_weight_details=with_weight_out,
+        without_weight_details=without_weight_out,
+        created_at=exercise_model.created_at,
+        updated_at=exercise_model.updated_at,
     )
 
-def _create_exercise_details_in_db(db: Session, exercise_obj: Exercicio, exercicio_schema: ExercicioCreate):
-    """Cria detalhes específicos do exercício (com peso ou sem peso)"""
-    if exercicio_schema.tipo_exercicio == TipoExercicio.COM_PESO and exercicio_schema.com_peso_details:
-        com_peso = ComPeso(exercicio_id=exercise_obj.id, **exercicio_schema.com_peso_details.model_dump())
-        db.add(com_peso)
-        db.flush()
-    elif exercicio_schema.tipo_exercicio == TipoExercicio.SEM_PESO and exercicio_schema.sem_peso_details:
-        sem_peso = SemPeso(exercicio_id=exercise_obj.id, **exercicio_schema.sem_peso_details.model_dump())
-        db.add(sem_peso)
-        db.flush()
 
-def create_exercise(db: Session, exercicio_data: ExercicioCreate) -> ExercicioOut:
-    """
-    US11/US14: Cria um exercício com peso ou sem peso
-    """
-    # Cria o exercício base
-    db_exercicio = Exercicio(
-        nome=exercicio_data.nome,
-        grupo_muscular=exercicio_data.grupo_muscular,
-        dificuldade=exercicio_data.dificuldade,
-        serie=exercicio_data.serie,
-        repeticoes=exercicio_data.repeticoes,
-        comentario=exercicio_data.comentario,
-        instrucoes=exercicio_data.instrucoes,
-        tempo_descanso_seg=exercicio_data.tempo_descanso_seg,
-        is_composto=exercicio_data.is_composto,
-        equipamento=exercicio_data.equipamento,
-        tipo_exercicio=exercicio_data.tipo_exercicio,
-        created_at=datetime.utcnow()
+def _create_exercise_details_in_db(db: Session, exercise: Exercise, exercise_data: ExerciseCreate):
+    """Create exercise details based on type"""
+    if exercise_data.exercise_type == ExerciseType.WITH_WEIGHT:
+        with_weight = WithWeight(
+            exercise_id=exercise.id,
+            weight_kg=exercise_data.with_weight_details.weight_kg,
+            max_weight_kg=exercise_data.with_weight_details.max_weight_kg,
+            suggested_increment_kg=exercise_data.with_weight_details.suggested_increment_kg,
+        )
+        db.add(with_weight)
+    else:
+        without_weight = WithoutWeight(
+            exercise_id=exercise.id,
+            duration_sec=exercise_data.without_weight_details.duration_sec,
+            distance_m=exercise_data.without_weight_details.distance_m,
+            target_speed=exercise_data.without_weight_details.target_speed,
+            intensity_level=exercise_data.without_weight_details.intensity_level,
+        )
+        db.add(without_weight)
+
+
+def create_exercise(db: Session, exercise_data: ExerciseCreate) -> ExerciseOut:
+    """Create a new exercise"""
+    db_exercise = Exercise(
+        name=exercise_data.name,
+        muscle_group=exercise_data.muscle_group,
+        difficulty=exercise_data.difficulty,
+        sets=exercise_data.sets,
+        reps=exercise_data.reps,
+        comment=exercise_data.comment,
+        instructions=exercise_data.instructions,
+        rest_time_sec=exercise_data.rest_time_sec,
+        is_compound=exercise_data.is_compound,
+        equipment=exercise_data.equipment,
+        exercise_type=exercise_data.exercise_type,
     )
-    db.add(db_exercicio)
+    
+    db.add(db_exercise)
     db.flush()
 
-    # Cria os detalhes específicos
-    _create_exercise_details_in_db(db, db_exercicio, exercicio_data)
-    
+    _create_exercise_details_in_db(db, db_exercise, exercise_data)
+
     db.commit()
-    db.refresh(db_exercicio)
+    db.refresh(db_exercise)
 
-    return _convert_exercicio_model_to_out_schema(db_exercicio)
+    return _convert_exercise_model_to_out_schema(db_exercise)
 
-def get_exercise_by_id(db: Session, exercise_id: int) -> Optional[ExercicioOut]:
-    """
-    Busca um exercício por ID
-    """
-    exercicio = db.execute(
-        select(Exercicio)
-        .where(Exercicio.id == exercise_id)
-        .options(
-            selectinload(Exercicio.com_peso_details),
-            selectinload(Exercicio.sem_peso_details)
-        )
-    ).scalars().first()
 
-    if not exercicio:
-        return None
-    
-    return _convert_exercicio_model_to_out_schema(exercicio)
+def get_exercise_by_id(db: Session, exercise_id: int) -> Optional[ExerciseOut]:
+    """Get exercise by ID"""
+    stmt = select(Exercise).where(Exercise.id == exercise_id).options(
+        selectinload(Exercise.with_weight_details),
+        selectinload(Exercise.without_weight_details),
+    )
+    exercise = db.scalars(stmt).first()
 
-def get_exercises_by_type(db: Session, tipo_exercicio: str) -> List[ExercicioOut]:
-    """
-    Lista exercícios por tipo (COM_PESO ou SEM_PESO)
-    """
-    if tipo_exercicio not in ["COM_PESO", "SEM_PESO"]:
-        return []
-    
-    tipo_enum = TipoExercicio.COM_PESO if tipo_exercicio == "COM_PESO" else TipoExercicio.SEM_PESO
-    
-    exercicios = db.execute(
-        select(Exercicio)
-        .where(Exercicio.tipo_exercicio == tipo_enum)
-        .options(
-            selectinload(Exercicio.com_peso_details),
-            selectinload(Exercicio.sem_peso_details)
-        )
-    ).scalars().all()
-
-    return [_convert_exercicio_model_to_out_schema(exercicio) for exercicio in exercicios]
-
-def get_all_exercises(db: Session) -> List[ExercicioOut]:
-    """
-    Lista todos os exercícios
-    """
-    exercicios = db.execute(
-        select(Exercicio)
-        .options(
-            selectinload(Exercicio.com_peso_details),
-            selectinload(Exercicio.sem_peso_details)
-        )
-    ).scalars().all()
-
-    return [_convert_exercicio_model_to_out_schema(e) for e in exercicios]
-
-def update_exercise(db: Session, exercise_id: int, exercicio_data: ExercicioUpdate) -> Optional[ExercicioOut]:
-    """
-    US12/US15: Atualiza um exercício existente
-    """
-    exercicio = db.execute(
-        select(Exercicio)
-        .where(Exercicio.id == exercise_id)
-        .options(
-            selectinload(Exercicio.com_peso_details),
-            selectinload(Exercicio.sem_peso_details)
-        )
-    ).scalars().first()
-
-    if not exercicio:
+    if not exercise:
         return None
 
-    # Atualiza campos básicos se fornecidos
-    update_fields = exercicio_data.model_dump(exclude_unset=True, exclude={'com_peso_details', 'sem_peso_details'})
-    for field, value in update_fields.items():
-        setattr(exercicio, field, value)
-    
-    exercicio.updated_at = datetime.utcnow()
+    return _convert_exercise_model_to_out_schema(exercise)
 
-    # Atualiza detalhes específicos baseado no tipo
-    if exercicio.tipo_exercicio == TipoExercicio.COM_PESO and exercicio_data.com_peso_details is not None and exercicio.com_peso_details:
-        for field, value in exercicio_data.com_peso_details.model_dump(exclude_unset=True).items():
-            setattr(exercicio.com_peso_details, field, value)
-    elif exercicio.tipo_exercicio == TipoExercicio.SEM_PESO and exercicio_data.sem_peso_details is not None and exercicio.sem_peso_details:
-        for field, value in exercicio_data.sem_peso_details.model_dump(exclude_unset=True).items():
-            setattr(exercicio.sem_peso_details, field, value)
 
-    db.add(exercicio)
+def get_all_exercises(db: Session, skip: int = 0, limit: int = 100) -> List[ExerciseOut]:
+    """Get all exercises"""
+    stmt = select(Exercise).offset(skip).limit(limit).options(
+        selectinload(Exercise.with_weight_details),
+        selectinload(Exercise.without_weight_details),
+    )
+    exercises = db.scalars(stmt).all()
+
+    return [_convert_exercise_model_to_out_schema(exercise) for exercise in exercises]
+
+
+def update_exercise(db: Session, exercise_id: int, exercise_data: ExerciseUpdate) -> Optional[ExerciseOut]:
+    """Update an existing exercise"""
+    stmt = select(Exercise).where(Exercise.id == exercise_id).options(
+        selectinload(Exercise.with_weight_details),
+        selectinload(Exercise.without_weight_details),
+    )
+    exercise = db.scalars(stmt).first()
+
+    if not exercise:
+        return None
+
+    # Update basic fields
+    if exercise_data.name is not None:
+        exercise.name = exercise_data.name
+    if exercise_data.muscle_group is not None:
+        exercise.muscle_group = exercise_data.muscle_group
+    if exercise_data.difficulty is not None:
+        exercise.difficulty = exercise_data.difficulty
+    if exercise_data.sets is not None:
+        exercise.sets = exercise_data.sets
+    if exercise_data.reps is not None:
+        exercise.reps = exercise_data.reps
+    if exercise_data.comment is not None:
+        exercise.comment = exercise_data.comment
+    if exercise_data.instructions is not None:
+        exercise.instructions = exercise_data.instructions
+    if exercise_data.rest_time_sec is not None:
+        exercise.rest_time_sec = exercise_data.rest_time_sec
+    if exercise_data.is_compound is not None:
+        exercise.is_compound = exercise_data.is_compound
+    if exercise_data.equipment is not None:
+        exercise.equipment = exercise_data.equipment
+
+    # Update exercise details
+    if exercise_data.with_weight_details and exercise.with_weight_details:
+        if exercise_data.with_weight_details.weight_kg is not None:
+            exercise.with_weight_details.weight_kg = exercise_data.with_weight_details.weight_kg
+        if exercise_data.with_weight_details.max_weight_kg is not None:
+            exercise.with_weight_details.max_weight_kg = exercise_data.with_weight_details.max_weight_kg
+        if exercise_data.with_weight_details.suggested_increment_kg is not None:
+            exercise.with_weight_details.suggested_increment_kg = exercise_data.with_weight_details.suggested_increment_kg
+
+    if exercise_data.without_weight_details and exercise.without_weight_details:
+        if exercise_data.without_weight_details.duration_sec is not None:
+            exercise.without_weight_details.duration_sec = exercise_data.without_weight_details.duration_sec
+        if exercise_data.without_weight_details.distance_m is not None:
+            exercise.without_weight_details.distance_m = exercise_data.without_weight_details.distance_m
+        if exercise_data.without_weight_details.target_speed is not None:
+            exercise.without_weight_details.target_speed = exercise_data.without_weight_details.target_speed
+        if exercise_data.without_weight_details.intensity_level is not None:
+            exercise.without_weight_details.intensity_level = exercise_data.without_weight_details.intensity_level
+
+    exercise.updated_at = datetime.now()
+
     db.commit()
-    db.refresh(exercicio)
+    db.refresh(exercise)
 
-    return _convert_exercicio_model_to_out_schema(exercicio)
+    return _convert_exercise_model_to_out_schema(exercise)
+
 
 def delete_exercise(db: Session, exercise_id: int) -> bool:
-    """
-    US13/US16: Deleta um exercício
-    """
-    exercicio = db.execute(
-        select(Exercicio)
-        .where(Exercicio.id == exercise_id)
-    ).scalars().first()
+    """Delete an exercise"""
+    stmt = select(Exercise).where(Exercise.id == exercise_id)
+    exercise = db.scalars(stmt).first()
 
-    if not exercicio:
+    if not exercise:
         return False
 
-    # Remove detalhes específicos (cascade deve cuidar disso, mas vamos ser explícitos)
-    if exercicio.com_peso_details:
-        db.delete(exercicio.com_peso_details)
-    if exercicio.sem_peso_details:
-        db.delete(exercicio.sem_peso_details)
-
-    # Remove o exercício
-    db.delete(exercicio)
+    db.delete(exercise)
     db.commit()
+
     return True
 
-def get_exercises_in_training(db: Session, training_id: int) -> List[ExercicioOut]:
-    """
-    Busca exercícios de um treino específico
-    """
-    treino = db.execute(
-        select(Treino)
-        .where(Treino.id == training_id)
-        .options(
-            selectinload(Treino.exercicios).selectinload(Exercicio.com_peso_details),
-            selectinload(Treino.exercicios).selectinload(Exercicio.sem_peso_details)
-        )
-    ).scalars().first()
 
-    if not treino:
-        return []
+def get_exercises_by_muscle_group(db: Session, muscle_group: str) -> List[ExerciseOut]:
+    """Get exercises by muscle group"""
+    stmt = select(Exercise).where(Exercise.muscle_group == muscle_group).options(
+        selectinload(Exercise.with_weight_details),
+        selectinload(Exercise.without_weight_details),
+    )
+    exercises = db.scalars(stmt).all()
 
-    return [_convert_exercicio_model_to_out_schema(exercicio) for exercicio in treino.exercicios] 
+    return [_convert_exercise_model_to_out_schema(exercise) for exercise in exercises]
+
+
+def get_exercises_by_difficulty(db: Session, difficulty: str) -> List[ExerciseOut]:
+    """Get exercises by difficulty"""
+    stmt = select(Exercise).where(Exercise.difficulty == difficulty).options(
+        selectinload(Exercise.with_weight_details),
+        selectinload(Exercise.without_weight_details),
+    )
+    exercises = db.scalars(stmt).all()
+
+    return [_convert_exercise_model_to_out_schema(exercise) for exercise in exercises]
