@@ -5,62 +5,67 @@ from app.db.session import Base
 import enum
 
 
-class Genero(str, enum.Enum):
-    MASCULINO = "masculino"
-    FEMININO = "feminino"
-    OUTRO = "outro"
-    NAO_INFORMADO = "nao_informado"
+class Gender(str, enum.Enum):
+    MALE = "masculino"
+    FEMALE = "feminino"
+    OTHER = "outro"
+    NOT_INFORMED = "nao_informado"
 
 
-class NivelAtividade(str, enum.Enum):
-    SEDENTARIO = "sedentario"
-    LEVE = "leve"
-    MODERADO = "moderado"
-    INTENSO = "intenso"
-    MUITO_INTENSO = "muito_intenso"
+class ActivityLevel(str, enum.Enum):
+    SEDENTARY = "sedentario"
+    LIGHT = "leve"
+    MODERATE = "moderado"
+    INTENSE = "intenso"
+    VERY_INTENSE = "muito_intenso"
 
 
-class ObjetivoFitness(str, enum.Enum):
-    PERDA_PESO = "perda_peso"
-    GANHO_MASSA = "ganho_massa"
-    DEFINICAO = "definicao"
-    RESISTENCIA = "resistencia"
-    FORCA = "forca"
-    SAUDE_GERAL = "saude_geral"
+class FitnessGoal(str, enum.Enum):
+    WEIGHT_LOSS = "perda_peso"
+    MUSCLE_GAIN = "ganho_massa"
+    GENERAL_HEALTH = "saude_geral"
+    STRENGTH = "forca"
+    ENDURANCE = "resistencia"
 
 
 class User(Base):
-    __tablename__ = 'usuarios'
+    __tablename__ = "usuarios"
 
     id = Column(Integer, primary_key=True, index=True)
-    nome = Column(String(255), index=True, nullable=False)
+    name = Column(String(255), index=True, nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
-    senha_hash = Column(String(255), nullable=False)
-    
-    # Perfil físico
-    data_nascimento = Column(Date, nullable=True)
-    genero = Column(Enum(Genero), default=Genero.NAO_INFORMADO)
-    altura_cm = Column(Float, nullable=True)
-    peso_kg = Column(Float, nullable=True)
-    
-    # Perfil fitness
-    nivel_atividade = Column(Enum(NivelAtividade), default=NivelAtividade.SEDENTARIO)
-    objetivo_principal = Column(Enum(ObjetivoFitness), default=ObjetivoFitness.SAUDE_GERAL)
-    experiencia_treino_anos = Column(Float, default=0.0)
-    
-    # Informações adicionais
+    password_hash = Column(String(255), nullable=False)
+
+    # Physical profile
+    birth_date = Column(Date, nullable=True)
+    gender = Column(Enum(Gender), default=Gender.NOT_INFORMED)
+    height_cm = Column(Float, nullable=True)
+    weight_kg = Column(Float, nullable=True)
+
+    # Fitness profile
+    activity_level = Column(Enum(ActivityLevel), default=ActivityLevel.SEDENTARY)
+    main_goal = Column(Enum(FitnessGoal), default=FitnessGoal.GENERAL_HEALTH)
+    training_experience_years = Column(Float, default=0.0)
+
+    # Additional information
     bio = Column(Text, nullable=True)
-    meta_peso_kg = Column(Float, nullable=True)
-    
-    # Configurações do app
+    target_weight_kg = Column(Float, nullable=True)
+
+    # App settings
     is_active = Column(Integer, default=1)
     is_premium = Column(Integer, default=0)
-    
+
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
-    # Relacionamentos
-    treinos = relationship("Treino", back_populates="usuario", cascade="all, delete-orphan")
-    historico_exercicios = relationship("HistoricoExecucao", back_populates="usuario", cascade="all, delete-orphan")
-    templates_treino = relationship("TemplateTreino", back_populates="criador", cascade="all, delete-orphan")
+
+    # Relationships
+    trainings = relationship(
+        "Training", back_populates="user", cascade="all, delete-orphan"
+    )
+    exercise_history = relationship(
+        "ExecutionHistory", back_populates="user", cascade="all, delete-orphan"
+    )
+    training_templates = relationship(
+        "TrainingTemplate", back_populates="creator", cascade="all, delete-orphan"
+    )

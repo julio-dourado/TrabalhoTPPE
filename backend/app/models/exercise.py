@@ -1,113 +1,142 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Text, Enum, DateTime, Boolean
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Float,
+    ForeignKey,
+    Text,
+    Enum,
+    DateTime,
+    Boolean,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db.session import Base
 import enum
 
 
-class GrupoMuscular(str, enum.Enum):
-    PEITO = "PEITO"
-    COSTAS = "COSTAS"
-    OMBROS = "OMBROS"
+class MuscleGroup(str, enum.Enum):
+    CHEST = "PEITO"
+    BACK = "COSTAS"
+    SHOULDERS = "OMBROS"
     BICEPS = "BICEPS"
     TRICEPS = "TRICEPS"
-    PERNAS = "PERNAS"
-    GLUTEOS = "GLUTEOS"
+    LEGS = "PERNAS"
+    GLUTES = "GLUTEOS"
     ABDOMEN = "ABDOMEN"
-    PANTURRILHA = "PANTURRILHA"
-    ANTEBRACO = "ANTEBRACO"
+    CALVES = "PANTURRILHA"
+    FOREARMS = "ANTEBRACO"
     CARDIO = "CARDIO"
-    CORPO_INTEIRO = "CORPO_INTEIRO"
+    FULL_BODY = "CORPO_INTEIRO"
 
 
-class Dificuldade(str, enum.Enum):
-    INICIANTE = "INICIANTE"
-    INTERMEDIARIO = "INTERMEDIARIO"
-    AVANCADO = "AVANCADO"
+class ExerciseType(str, enum.Enum):
+    WITH_WEIGHT = "COM_PESO"
+    WITHOUT_WEIGHT = "SEM_PESO"
 
 
-class TipoExercicio(str, enum.Enum):
-    COM_PESO = "COM_PESO"
-    SEM_PESO = "SEM_PESO"
+class Difficulty(str, enum.Enum):
+    BEGINNER = "INICIANTE"
+    INTERMEDIATE = "INTERMEDIARIO"
+    ADVANCED = "AVANCADO"
 
 
-class ComPeso(Base):
-    __tablename__ = 'com_peso'
-    
+class Exercise(Base):
+    __tablename__ = "exercicios"
+
     id = Column(Integer, primary_key=True, index=True)
-    exercicio_id = Column(Integer, ForeignKey("exercicios.id"), unique=True, nullable=False)
-    peso_kg = Column(Float, nullable=False)
-    # Campos adicionais para progressão
-    peso_maximo_kg = Column(Float, nullable=True)  # 1RM estimado
-    incremento_sugerido_kg = Column(Float, default=2.5)  # Incremento sugerido para progressão
+    name = Column(String(255), index=True, nullable=False)
+    muscle_group = Column(Enum(MuscleGroup), nullable=False)
+    difficulty = Column(Enum(Difficulty), default=Difficulty.BEGINNER)
+    sets = Column(Integer, nullable=False)
+    reps = Column(Integer, nullable=False)
+    comment = Column(String(500), nullable=True)
+    instructions = Column(Text, nullable=True)  # Detailed execution instructions
+    exercise_type = Column(Enum(ExerciseType), nullable=False)
 
-    exercicio = relationship("Exercicio", back_populates="com_peso_details")
+    # User experience fields
+    rest_time_sec = Column(Integer, default=60)  # Suggested rest time
+    is_compound = Column(Boolean, default=False)  # If it's compound or isolation exercise
+    equipment = Column(String(100), nullable=True)  # Required equipment
 
-
-class SemPeso(Base):
-    __tablename__ = 'sem_peso'
-    
-    id = Column(Integer, primary_key=True, index=True)
-    exercicio_id = Column(Integer, ForeignKey("exercicios.id"), unique=True, nullable=False)
-    tempo_seg = Column(Float, nullable=True)  # Para exercícios baseados em tempo
-    distancia_m = Column(Float, nullable=True)  # Para exercícios baseados em distância
-    calorias_estimadas = Column(Float, nullable=True)  # Estimativa de calorias
-    intensidade = Column(String(20), default="moderada")  # baixa, moderada, alta
-
-    exercicio = relationship("Exercicio", back_populates="sem_peso_details")
-
-
-class Exercicio(Base):
-    __tablename__ = 'exercicios'
-    
-    id = Column(Integer, primary_key=True, index=True)
-    nome = Column(String(255), index=True, nullable=False)
-    grupo_muscular = Column(Enum(GrupoMuscular), nullable=False)
-    dificuldade = Column(Enum(Dificuldade), default=Dificuldade.INICIANTE)
-    serie = Column(Integer, nullable=False)
-    repeticoes = Column(Integer, nullable=False)
-    comentario = Column(String(500), nullable=True)
-    instrucoes = Column(Text, nullable=True)  # Instruções detalhadas de execução
-    tipo_exercicio = Column(Enum(TipoExercicio), nullable=False)
-    
-    # Campos para melhor experiência do usuário
-    tempo_descanso_seg = Column(Integer, default=60)  # Tempo de descanso sugerido
-    is_composto = Column(Boolean, default=False)  # Se é exercício composto ou isolado
-    equipamento = Column(String(100), nullable=True)  # Equipamento necessário
-    
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    com_peso_details = relationship("ComPeso", back_populates="exercicio", uselist=False, cascade="all, delete-orphan")
-    sem_peso_details = relationship("SemPeso", back_populates="exercicio", uselist=False, cascade="all, delete-orphan")
-    treinos = relationship("Treino", secondary="treino_exercicio", back_populates="exercicios")
-    historico_execucoes = relationship("HistoricoExecucao", back_populates="exercicio", cascade="all, delete-orphan")
+    with_weight_details = relationship(
+        "WithWeight",
+        back_populates="exercise",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    without_weight_details = relationship(
+        "WithoutWeight",
+        back_populates="exercise",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    trainings = relationship(
+        "Training", secondary="treino_exercicio", back_populates="exercises"
+    )
+    execution_history = relationship(
+        "ExecutionHistory", back_populates="exercise", cascade="all, delete-orphan"
+    )
 
 
-# Nova tabela para histórico de execuções
-class HistoricoExecucao(Base):
-    __tablename__ = 'historico_execucao'
-    
+class WithWeight(Base):
+    __tablename__ = "com_peso"
+
     id = Column(Integer, primary_key=True, index=True)
-    exercicio_id = Column(Integer, ForeignKey('exercicios.id'), nullable=False)
-    usuario_id = Column(Integer, ForeignKey('usuarios.id'), nullable=False)
-    treino_id = Column(Integer, ForeignKey('treinos.id'), nullable=True)
-    
-    # Dados da execução
-    series_realizadas = Column(Integer, nullable=False)
-    repeticoes_realizadas = Column(Integer, nullable=False)
-    peso_utilizado_kg = Column(Float, nullable=True)
-    tempo_execucao_seg = Column(Float, nullable=True)
-    distancia_realizada_m = Column(Float, nullable=True)
-    
-    # Avaliação da execução
-    dificuldade_percebida = Column(Integer, nullable=True)  # 1-10 (RPE)
-    observacoes = Column(Text, nullable=True)
-    
-    # Timestamp
-    executado_em = Column(DateTime(timezone=True), server_default=func.now())
-    
-    exercicio = relationship("Exercicio", back_populates="historico_execucoes")
-    usuario = relationship("User", back_populates="historico_exercicios")
-    treino = relationship("Treino", back_populates="historico_execucoes") 
+    exercise_id = Column(Integer, ForeignKey("exercicios.id"), nullable=False)
+    weight_kg = Column(Float, nullable=False)
+    max_weight_kg = Column(Float, nullable=True)
+    suggested_increment_kg = Column(Float, default=2.5)
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    exercise = relationship("Exercise", back_populates="with_weight_details")
+
+
+class WithoutWeight(Base):
+    __tablename__ = "sem_peso"
+
+    id = Column(Integer, primary_key=True, index=True)
+    exercise_id = Column(Integer, ForeignKey("exercicios.id"), nullable=False)
+    duration_sec = Column(Float, nullable=False)
+    distance_m = Column(Float, nullable=False)
+    target_speed = Column(Float, nullable=False)
+    intensity_level = Column(Integer, default=1)
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    exercise = relationship("Exercise", back_populates="without_weight_details")
+
+
+class ExecutionHistory(Base):
+    __tablename__ = "historico_execucao"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    exercise_id = Column(Integer, ForeignKey("exercicios.id"), nullable=False)
+    training_id = Column(Integer, ForeignKey("treinos.id"), nullable=True)
+
+    # Execution data
+    sets_completed = Column(Integer, nullable=False)
+    reps_completed = Column(Integer, nullable=False)
+    weight_used_kg = Column(Float, nullable=True)
+    rest_time_sec = Column(Integer, nullable=True)
+    perceived_exertion = Column(Integer, nullable=True)  # 1-10 RPE
+    notes = Column(Text, nullable=True)
+
+    # Timestamps
+    executed_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    user = relationship("User", back_populates="exercise_history")
+    exercise = relationship("Exercise", back_populates="execution_history")
+    training = relationship("Training", back_populates="execution_history")

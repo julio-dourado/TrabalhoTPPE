@@ -1,23 +1,37 @@
-# Importações dos modelos principais
-from .user import User, Genero, NivelAtividade, ObjetivoFitness
-from .training import Treino, TemplateTreino, ExercicioTemplate, StatusTreino, CategoriaTreino
-from .exercise import Exercicio, ComPeso, SemPeso, HistoricoExecucao, GrupoMuscular, Dificuldade, TipoExercicio
+# Main model imports
+from .user import User, Gender, ActivityLevel, FitnessGoal
+from .training import (
+    Training,
+    TrainingTemplate,
+    ExerciseTemplate,
+    TrainingStatus,
+    TrainingCategory,
+)
+from .exercise import (
+    Exercise,
+    WithWeight,
+    WithoutWeight,
+    ExecutionHistory,
+    MuscleGroup,
+    Difficulty,
+    ExerciseType,
+)
 
 __all__ = [
     "User",
-    "Genero", 
-    "NivelAtividade",
-    "ObjetivoFitness",
-    "Treino",
-    "TemplateTreino",
-    "ExercicioTemplate", 
-    "StatusTreino",
-    "CategoriaTreino",
-    "Exercicio",
-    "ComPeso", 
-    "SemPeso",
-    "HistoricoExecucao",
-    "GrupoMuscular",
-    "Dificuldade",
-    "TipoExercicio"
-] 
+    "Gender",
+    "ActivityLevel",
+    "FitnessGoal",
+    "Training",
+    "TrainingTemplate",
+    "ExerciseTemplate",
+    "TrainingStatus",
+    "TrainingCategory",
+    "Exercise",
+    "WithWeight",
+    "WithoutWeight",
+    "ExecutionHistory",
+    "MuscleGroup",
+    "Difficulty",
+    "ExerciseType",
+]
