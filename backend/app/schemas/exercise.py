@@ -1,166 +1,165 @@
 from typing import Optional, List
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
-from app.models.exercise import GrupoMuscular, Dificuldade, TipoExercicio
+from app.models.exercise import MuscleGroup, Difficulty, ExerciseType
 
 
-class ExercicioBase(BaseModel):
-    nome: str = Field(..., min_length=1, max_length=255, example="Agachamento")
-    grupo_muscular: GrupoMuscular = Field(..., example=GrupoMuscular.PERNAS)
-    dificuldade: Dificuldade = Field(default=Dificuldade.INICIANTE)
-    serie: int = Field(..., gt=0, le=20, example=3)
-    repeticoes: int = Field(..., gt=0, le=500, example=10)
-    comentario: Optional[str] = Field(None, max_length=500, example="Focar na forma.")
-    instrucoes: Optional[str] = Field(None, max_length=2000, example="Mantenha os pés afastados na largura dos ombros...")
-    tempo_descanso_seg: int = Field(default=60, ge=0, le=600)
-    is_composto: bool = Field(default=False, description="Se é exercício composto (True) ou isolado (False)")
-    equipamento: Optional[str] = Field(None, max_length=100, example="Barra olímpica")
+class ExerciseBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255, example="Squat")
+    muscle_group: MuscleGroup = Field(..., example=MuscleGroup.LEGS)
+    difficulty: Difficulty = Field(default=Difficulty.BEGINNER)
+    sets: int = Field(..., gt=0, le=20, example=3)
+    reps: int = Field(..., gt=0, le=500, example=10)
+    comment: Optional[str] = Field(None, max_length=500, example="Focus on form.")
+    instructions: Optional[str] = Field(
+        None,
+        max_length=2000,
+        example="Keep your feet shoulder-width apart...",
+    )
+    rest_time_sec: int = Field(default=60, ge=0, le=600)
+    is_compound: bool = Field(
+        default=False, description="Whether it's a compound (True) or isolation (False) exercise"
+    )
+    equipment: Optional[str] = Field(None, max_length=100, example="Olympic barbell")
 
 
-class ComPesoCreate(BaseModel):
-    peso_kg: float = Field(..., gt=0, le=1000, example=50.0)
-    peso_maximo_kg: Optional[float] = Field(None, gt=0, le=1000, example=60.0)
-    incremento_sugerido_kg: float = Field(default=2.5, gt=0, le=50)
+class WithWeightBase(BaseModel):
+    weight_kg: float = Field(..., gt=0, le=1000, example=80.0)
+    max_weight_kg: Optional[float] = Field(None, gt=0, le=1000, example=100.0)
+    suggested_increment_kg: float = Field(default=2.5, gt=0, le=50)
 
-
-class SemPesoCreate(BaseModel):
-    tempo_seg: Optional[float] = Field(None, gt=0, le=86400, example=60.0)
-    distancia_m: Optional[float] = Field(None, ge=0, le=100000, example=100.0)
-    calorias_estimadas: Optional[float] = Field(None, ge=0, le=2000, example=50.0)
-    intensidade: str = Field(default="moderada", pattern="^(baixa|moderada|alta)$")
-
-    @field_validator('tempo_seg', 'distancia_m')
+    @field_validator("max_weight_kg")
     @classmethod
-    def validate_at_least_one(cls, v, info):
-        if not v and not info.data.get('tempo_seg') and not info.data.get('distancia_m'):
-            raise ValueError('Pelo menos tempo_seg ou distancia_m deve ser fornecido')
+    def validate_max_weight(cls, v, info):
+        if v is not None and "weight_kg" in info.data:
+            if v < info.data["weight_kg"]:
+                raise ValueError("Max weight must be greater than or equal to current weight")
         return v
 
 
-class ComPesoUpdate(BaseModel):
-    peso_kg: Optional[float] = Field(None, gt=0, le=1000, example=50.0)
-    peso_maximo_kg: Optional[float] = Field(None, gt=0, le=1000, example=60.0)
-    incremento_sugerido_kg: Optional[float] = Field(None, gt=0, le=50)
+class WithWeightCreate(WithWeightBase):
+    pass
 
 
-class SemPesoUpdate(BaseModel):
-    tempo_seg: Optional[float] = Field(None, gt=0, le=86400, example=60.0)
-    distancia_m: Optional[float] = Field(None, ge=0, le=100000, example=100.0)
-    calorias_estimadas: Optional[float] = Field(None, ge=0, le=2000, example=50.0)
-    intensidade: Optional[str] = Field(None, pattern="^(baixa|moderada|alta)$")
+class WithWeightUpdate(BaseModel):
+    weight_kg: Optional[float] = Field(None, gt=0, le=1000)
+    max_weight_kg: Optional[float] = Field(None, gt=0, le=1000)
+    suggested_increment_kg: Optional[float] = Field(None, gt=0, le=50)
+
+    @field_validator("max_weight_kg")
+    @classmethod
+    def validate_max_weight(cls, v, info):
+        if v is not None and "weight_kg" in info.data:
+            if v < info.data["weight_kg"]:
+                raise ValueError("Max weight must be greater than or equal to current weight")
+        return v
 
 
-class ExercicioCreate(ExercicioBase):
-    tipo_exercicio: TipoExercicio = Field(..., example=TipoExercicio.COM_PESO)
-    com_peso_details: Optional[ComPesoCreate] = None
-    sem_peso_details: Optional[SemPesoCreate] = None
-
-    model_config = ConfigDict(extra='forbid')
-
-    @model_validator(mode='after')
-    def validate_exercise_details(self):
-        if self.tipo_exercicio == TipoExercicio.COM_PESO:
-            if not self.com_peso_details:
-                raise ValueError("com_peso_details deve ser fornecido para exercício 'COM_PESO'.")
-            if self.sem_peso_details:
-                raise ValueError("sem_peso_details não deve ser fornecido para exercício 'COM_PESO'.")
-        elif self.tipo_exercicio == TipoExercicio.SEM_PESO:
-            if not self.sem_peso_details:
-                raise ValueError("sem_peso_details deve ser fornecido para exercício 'SEM_PESO'.")
-            if self.com_peso_details:
-                raise ValueError("com_peso_details não deve ser fornecido para exercício 'SEM_PESO'.")
-        return self
-
-
-class ExercicioUpdate(BaseModel):
-    nome: Optional[str] = Field(None, min_length=1, max_length=255, example="Agachamento")
-    grupo_muscular: Optional[GrupoMuscular] = None
-    dificuldade: Optional[Dificuldade] = None
-    serie: Optional[int] = Field(None, gt=0, le=20, example=3)
-    repeticoes: Optional[int] = Field(None, gt=0, le=500, example=10)
-    comentario: Optional[str] = Field(None, max_length=500, example="Focar na forma.")
-    instrucoes: Optional[str] = Field(None, max_length=2000)
-    tempo_descanso_seg: Optional[int] = Field(None, ge=0, le=600)
-    is_composto: Optional[bool] = None
-    equipamento: Optional[str] = Field(None, max_length=100)
-    com_peso_details: Optional[ComPesoUpdate] = None
-    sem_peso_details: Optional[SemPesoUpdate] = None
-
-    model_config = ConfigDict(extra='forbid')
-
-
-class ComPesoOut(ComPesoCreate):
+class WithWeightOut(WithWeightBase):
     id: int
-    exercicio_id: int
-    model_config = ConfigDict(from_attributes=True)
-
-
-class SemPesoOut(SemPesoCreate):
-    id: int
-    exercicio_id: int
-    model_config = ConfigDict(from_attributes=True)
-
-
-class ExercicioOut(ExercicioBase):
-    id: int
-    tipo_exercicio: TipoExercicio
-    com_peso_details: Optional[ComPesoOut] = None
-    sem_peso_details: Optional[SemPesoOut] = None
+    exercise_id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
+
     model_config = ConfigDict(from_attributes=True)
 
 
-class ExercicioSummary(BaseModel):
-    """Resumo do exercício para listas"""
+class WithoutWeightBase(BaseModel):
+    duration_sec: float = Field(..., gt=0, le=86400, example=30.0)
+    distance_m: float = Field(..., ge=0, le=100000, example=1000.0)
+    target_speed: float = Field(..., gt=0, le=100, example=10.0)
+    intensity_level: int = Field(default=1, ge=1, le=10)
+
+
+class WithoutWeightCreate(WithoutWeightBase):
+    pass
+
+
+class WithoutWeightUpdate(BaseModel):
+    duration_sec: Optional[float] = Field(None, gt=0, le=86400)
+    distance_m: Optional[float] = Field(None, ge=0, le=100000)
+    target_speed: Optional[float] = Field(None, gt=0, le=100)
+    intensity_level: Optional[int] = Field(None, ge=1, le=10)
+
+
+class WithoutWeightOut(WithoutWeightBase):
     id: int
-    nome: str
-    grupo_muscular: GrupoMuscular
-    tipo_exercicio: TipoExercicio
-    dificuldade: Dificuldade
-    equipamento: Optional[str] = None
+    exercise_id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
     model_config = ConfigDict(from_attributes=True)
 
 
-# Schemas para histórico de execução
-class HistoricoExecucaoCreate(BaseModel):
-    exercicio_id: int
-    treino_id: Optional[int] = None
-    series_realizadas: int = Field(..., gt=0, le=50)
-    repeticoes_realizadas: int = Field(..., gt=0, le=1000)
-    peso_utilizado_kg: Optional[float] = Field(None, gt=0, le=1000)
-    tempo_execucao_seg: Optional[float] = Field(None, gt=0, le=86400)
-    distancia_realizada_m: Optional[float] = Field(None, ge=0, le=100000)
-    dificuldade_percebida: Optional[int] = Field(None, ge=1, le=10, description="RPE - Rate of Perceived Exertion")
-    observacoes: Optional[str] = Field(None, max_length=1000)
+class ExerciseCreate(ExerciseBase):
+    exercise_type: ExerciseType
+    with_weight_details: Optional[WithWeightCreate] = None
+    without_weight_details: Optional[WithoutWeightCreate] = None
+
+    @model_validator(mode="after")
+    def validate_exercise_details(self):
+        if self.exercise_type == ExerciseType.WITH_WEIGHT:
+            if not self.with_weight_details:
+                raise ValueError("With weight details are required for WITH_WEIGHT exercises")
+            if self.without_weight_details:
+                raise ValueError("Cannot have without weight details for WITH_WEIGHT exercises")
+        elif self.exercise_type == ExerciseType.WITHOUT_WEIGHT:
+            if not self.without_weight_details:
+                raise ValueError("Without weight details are required for WITHOUT_WEIGHT exercises")
+            if self.with_weight_details:
+                raise ValueError("Cannot have with weight details for WITHOUT_WEIGHT exercises")
+        return self
+
+    model_config = ConfigDict(extra="forbid")
 
 
-class HistoricoExecucaoOut(HistoricoExecucaoCreate):
+class ExerciseUpdate(BaseModel):
+    name: Optional[str] = Field(
+        None, min_length=1, max_length=255, example="Squat"
+    )
+    muscle_group: Optional[MuscleGroup] = None
+    difficulty: Optional[Difficulty] = None
+    sets: Optional[int] = Field(None, gt=0, le=20, example=3)
+    reps: Optional[int] = Field(None, gt=0, le=500, example=10)
+    comment: Optional[str] = Field(None, max_length=500, example="Focus on form.")
+    instructions: Optional[str] = Field(None, max_length=2000)
+    rest_time_sec: Optional[int] = Field(None, ge=0, le=600)
+    is_compound: Optional[bool] = None
+    equipment: Optional[str] = Field(None, max_length=100)
+    with_weight_details: Optional[WithWeightUpdate] = None
+    without_weight_details: Optional[WithoutWeightUpdate] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ExerciseOut(ExerciseBase):
     id: int
-    usuario_id: int
-    executado_em: datetime
-    exercicio: ExercicioSummary
+    exercise_type: ExerciseType
+    with_weight_details: Optional[WithWeightOut] = None
+    without_weight_details: Optional[WithoutWeightOut] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
     model_config = ConfigDict(from_attributes=True)
 
 
-class ExercicioStats(BaseModel):
-    """Estatísticas de um exercício específico"""
-    exercicio_id: int
-    nome_exercicio: str
-    total_execucoes: int = 0
-    volume_total_kg: float = 0
-    melhor_peso_kg: Optional[float] = None
-    melhor_repeticoes: Optional[int] = None
-    progressao_peso_30d: Optional[float] = None  # % de aumento nos últimos 30 dias
-    ultima_execucao: Optional[datetime] = None
-    rpe_medio: Optional[float] = None
+class ExerciseSummary(BaseModel):
+    """Simplified exercise data for lists"""
+    id: int
+    name: str
+    muscle_group: MuscleGroup
+    difficulty: Difficulty
+    sets: int
+    reps: int
+    exercise_type: ExerciseType
+
+    model_config = ConfigDict(from_attributes=True)
 
 
-class ExercicioFilter(BaseModel):
-    """Filtros para busca de exercícios"""
-    grupo_muscular: Optional[GrupoMuscular] = None
-    dificuldade: Optional[Dificuldade] = None
-    tipo_exercicio: Optional[TipoExercicio] = None
-    equipamento: Optional[str] = None
-    is_composto: Optional[bool] = None
-    nome_contains: Optional[str] = Field(None, max_length=100) 
+class ExerciseFilter(BaseModel):
+    """Filter options for exercise searches"""
+    muscle_group: Optional[MuscleGroup] = None
+    difficulty: Optional[Difficulty] = None
+    exercise_type: Optional[ExerciseType] = None
+    is_compound: Optional[bool] = None
+    equipment: Optional[str] = None

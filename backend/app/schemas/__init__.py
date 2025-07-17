@@ -1,32 +1,32 @@
-# Importações dos schemas principais
+# Main schema imports
 from .user import UserCreate, UserUpdate, UserOut
-from .training import TreinoCreate, TreinoUpdate, TreinoOut
+from .training import TrainingCreate, TrainingUpdate, TrainingOut
 from .exercise import (
-    ExercicioCreate, 
-    ExercicioUpdate, 
-    ExercicioOut,
-    ComPesoCreate,
-    ComPesoUpdate,
-    ComPesoOut,
-    SemPesoCreate,
-    SemPesoUpdate,
-    SemPesoOut
+    ExerciseCreate,
+    ExerciseUpdate,
+    ExerciseOut,
+    WithWeightCreate,
+    WithWeightUpdate,
+    WithWeightOut,
+    WithoutWeightCreate,
+    WithoutWeightUpdate,
+    WithoutWeightOut,
 )
 
 __all__ = [
     "UserCreate",
-    "UserUpdate", 
+    "UserUpdate",
     "UserOut",
-    "TreinoCreate",
-    "TreinoUpdate",
-    "TreinoOut",
-    "ExercicioCreate",
-    "ExercicioUpdate",
-    "ExercicioOut",
-    "ComPesoCreate",
-    "ComPesoUpdate",
-    "ComPesoOut",
-    "SemPesoCreate",
-    "SemPesoUpdate",
-    "SemPesoOut"
-] 
+    "TrainingCreate",
+    "TrainingUpdate",
+    "TrainingOut",
+    "ExerciseCreate",
+    "ExerciseUpdate",
+    "ExerciseOut",
+    "WithWeightCreate",
+    "WithWeightUpdate",
+    "WithWeightOut",
+    "WithoutWeightCreate",
+    "WithoutWeightUpdate",
+    "WithoutWeightOut",
+]

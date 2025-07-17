@@ -1,104 +1,59 @@
 from typing import Optional
 from datetime import date, datetime
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from app.models.user import Genero, NivelAtividade, ObjetivoFitness
+from app.models.user import Gender, ActivityLevel, FitnessGoal
 
 
 class UserBase(BaseModel):
     email: EmailStr
-    nome: str = Field(..., min_length=2, max_length=255)
+    name: str = Field(..., min_length=2, max_length=255)
 
 
 class UserCreate(UserBase):
-    senha: str = Field(..., min_length=6, description="A senha do usuário")
+    password: str = Field(..., min_length=8)
+    birth_date: Optional[date] = None
+    gender: Gender = Field(default=Gender.NOT_INFORMED)
+    height_cm: Optional[float] = Field(None, ge=50, le=300)
+    weight_kg: Optional[float] = Field(None, ge=20, le=500)
+    activity_level: ActivityLevel = Field(default=ActivityLevel.SEDENTARY)
+    main_goal: FitnessGoal = Field(default=FitnessGoal.GENERAL_HEALTH)
+    training_experience_years: float = Field(default=0.0, ge=0, le=50)
+    bio: Optional[str] = Field(None, max_length=1000)
+    target_weight_kg: Optional[float] = Field(None, ge=20, le=500)
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class UserUpdate(BaseModel):
-    nome: Optional[str] = Field(None, min_length=2, max_length=255)
-    email: Optional[EmailStr] = None
-    senha: Optional[str] = Field(None, min_length=6, description="A nova senha do usuário")
-    
-    # Perfil físico
-    data_nascimento: Optional[date] = None
-    genero: Optional[Genero] = None
-    altura_cm: Optional[float] = Field(None, gt=0, le=300)
-    peso_kg: Optional[float] = Field(None, gt=0, le=500)
-    
-    # Perfil fitness
-    nivel_atividade: Optional[NivelAtividade] = None
-    objetivo_principal: Optional[ObjetivoFitness] = None
-    experiencia_treino_anos: Optional[float] = Field(None, ge=0, le=50)
-    
-    # Informações adicionais
-    bio: Optional[str] = Field(None, max_length=500)
-    meta_peso_kg: Optional[float] = Field(None, gt=0, le=500)
+    name: Optional[str] = Field(None, min_length=2, max_length=255)
+    password: Optional[str] = Field(None, min_length=8)
+    birth_date: Optional[date] = None
+    gender: Optional[Gender] = None
+    height_cm: Optional[float] = Field(None, ge=50, le=300)
+    weight_kg: Optional[float] = Field(None, ge=20, le=500)
+    activity_level: Optional[ActivityLevel] = None
+    main_goal: Optional[FitnessGoal] = None
+    training_experience_years: Optional[float] = Field(None, ge=0, le=50)
+    bio: Optional[str] = Field(None, max_length=1000)
+    target_weight_kg: Optional[float] = Field(None, ge=20, le=500)
 
-
-class UserProfileUpdate(BaseModel):
-    """Schema específico para atualização de perfil (sem senha)"""
-    nome: Optional[str] = Field(None, min_length=2, max_length=255)
-    data_nascimento: Optional[date] = None
-    genero: Optional[Genero] = None
-    altura_cm: Optional[float] = Field(None, gt=0, le=300)
-    peso_kg: Optional[float] = Field(None, gt=0, le=500)
-    nivel_atividade: Optional[NivelAtividade] = None
-    objetivo_principal: Optional[ObjetivoFitness] = None
-    experiencia_treino_anos: Optional[float] = Field(None, ge=0, le=50)
-    bio: Optional[str] = Field(None, max_length=500)
-    meta_peso_kg: Optional[float] = Field(None, gt=0, le=500)
+    model_config = ConfigDict(extra="forbid")
 
 
 class UserOut(UserBase):
     id: int
-    
-    # Perfil físico
-    data_nascimento: Optional[date] = None
-    genero: Optional[Genero] = None
-    altura_cm: Optional[float] = None
-    peso_kg: Optional[float] = None
-    
-    # Perfil fitness
-    nivel_atividade: Optional[NivelAtividade] = None
-    objetivo_principal: Optional[ObjetivoFitness] = None
-    experiencia_treino_anos: Optional[float] = None
-    
-    # Informações adicionais
+    birth_date: Optional[date] = None
+    gender: Gender
+    height_cm: Optional[float] = None
+    weight_kg: Optional[float] = None
+    activity_level: ActivityLevel
+    main_goal: FitnessGoal
+    training_experience_years: float
     bio: Optional[str] = None
-    meta_peso_kg: Optional[float] = None
-    
-    # Status
+    target_weight_kg: Optional[float] = None
     is_active: bool
     is_premium: bool
-    
-    # Timestamps
     created_at: datetime
     updated_at: Optional[datetime] = None
-    
-    model_config = ConfigDict(
-        from_attributes=True,
-    )
 
-
-class UserStats(BaseModel):
-    """Estatísticas do usuário para dashboard"""
-    total_treinos: int = 0
-    treinos_concluidos: int = 0
-    treinos_mes_atual: int = 0
-    tempo_total_treino_min: int = 0
-    calorias_queimadas_total: float = 0
-    volume_total_levantado_kg: float = 0
-    exercicio_favorito: Optional[str] = None
-    streak_atual_dias: int = 0
-    maior_streak_dias: int = 0
-
-
-class UserPublicProfile(BaseModel):
-    """Perfil público do usuário (para compartilhamento)"""
-    id: int
-    nome: str
-    bio: Optional[str] = None
-    objetivo_principal: Optional[ObjetivoFitness] = None
-    experiencia_treino_anos: Optional[float] = None
-    created_at: datetime
-    
     model_config = ConfigDict(from_attributes=True)

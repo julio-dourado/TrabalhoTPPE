@@ -3,187 +3,102 @@ from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from app.schemas.user import UserOut
-from app.schemas.exercise import ExercicioCreate, ExercicioOut, ExercicioSummary
-from app.models.training import StatusTreino, CategoriaTreino
+from app.schemas.exercise import ExerciseCreate, ExerciseOut, ExerciseSummary
+from app.models.training import TrainingStatus, TrainingCategory
 
-class TreinoBase(BaseModel):
-    nome: str = Field(..., min_length=1, max_length=255, example="Treino de Pernas")
-    descricao: Optional[str] = Field(None, max_length=1000, example="Treino focado em força para membros inferiores")
-    categoria: CategoriaTreino = Field(default=CategoriaTreino.FORCA)
-    duracao_estimada_min: int = Field(default=60, ge=15, le=300, description="Duração estimada em minutos")
 
-class TreinoCreate(TreinoBase):
-    exercicios: List[ExercicioCreate] = Field(..., min_length=1, max_length=20, description="Lista de exercícios do treino")
-    model_config = ConfigDict(extra='forbid')
+class TrainingBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255, example="Leg Training")
+    description: Optional[str] = Field(
+        None, max_length=1000, example="Strength training focused on lower body"
+    )
+    category: TrainingCategory = Field(default=TrainingCategory.STRENGTH)
+    estimated_duration_min: int = Field(
+        default=60, ge=15, le=300, description="Estimated duration in minutes"
+    )
 
-class TreinoUpdate(BaseModel):
-    nome: Optional[str] = Field(None, min_length=1, max_length=255)
-    descricao: Optional[str] = Field(None, max_length=1000)
-    categoria: Optional[CategoriaTreino] = None
-    duracao_estimada_min: Optional[int] = Field(None, ge=15, le=300)
-    status: Optional[StatusTreino] = None
-    
-    # Campos de execução
-    duracao_real_min: Optional[int] = Field(None, ge=1, le=600)
-    calorias_queimadas: Optional[float] = Field(None, ge=0, le=2000)
-    volume_total_kg: Optional[float] = Field(None, ge=0, le=50000)
-    
-    # Avaliação
-    dificuldade_percebida: Optional[int] = Field(None, ge=1, le=10, description="RPE - Rate of Perceived Exertion")
-    satisfacao: Optional[int] = Field(None, ge=1, le=5, description="Nível de satisfação (1-5)")
-    observacoes: Optional[str] = Field(None, max_length=1000)
-    
-    model_config = ConfigDict(extra='forbid')
 
-class TreinoOut(TreinoBase):
+class TrainingCreate(TrainingBase):
+    exercises: List[ExerciseCreate] = Field(..., min_length=1)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class TrainingUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = Field(None, max_length=1000)
+    category: Optional[TrainingCategory] = None
+    estimated_duration_min: Optional[int] = Field(None, ge=15, le=300)
+    status: Optional[TrainingStatus] = None
+
+    # Execution fields
+    actual_duration_min: Optional[int] = Field(None, ge=1, le=600)
+    calories_burned: Optional[float] = Field(None, ge=0, le=2000)
+    total_volume_kg: Optional[float] = Field(None, ge=0, le=50000)
+
+    # Evaluation
+    perceived_difficulty: Optional[int] = Field(
+        None, ge=1, le=10, description="RPE - Rate of Perceived Exertion"
+    )
+    satisfaction: Optional[int] = Field(
+        None, ge=1, le=5, description="Satisfaction level (1-5)"
+    )
+    observations: Optional[str] = Field(None, max_length=1000)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class TrainingOut(TrainingBase):
     id: int
-    usuario_id: int
-    status: StatusTreino = StatusTreino.PLANEJADO
-    
-    # Dados de execução
-    duracao_real_min: Optional[int] = None
-    calorias_queimadas: Optional[float] = None
-    volume_total_kg: Optional[float] = None
-    
-    # Avaliação
-    dificuldade_percebida: Optional[int] = None
-    satisfacao: Optional[int] = None
-    observacoes: Optional[str] = None
-    
-    # Timestamps
+    user_id: int
+    status: TrainingStatus
+    actual_duration_min: Optional[int] = None
+    calories_burned: Optional[float] = None
+    total_volume_kg: Optional[float] = None
+    perceived_difficulty: Optional[int] = None
+    satisfaction: Optional[int] = None
+    observations: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
-    iniciado_em: Optional[datetime] = None
-    finalizado_em: Optional[datetime] = None
-    
-    # Relacionamentos
-    exercicios: List[ExercicioOut] = []
-    
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    exercises: List[ExerciseOut] = []
+
     model_config = ConfigDict(from_attributes=True)
 
-class TreinoSummary(BaseModel):
-    """Resumo do treino para listas"""
+
+class TrainingSummary(BaseModel):
+    """Simplified training data for lists"""
     id: int
-    nome: str
-    categoria: CategoriaTreino
-    status: StatusTreino
-    duracao_estimada_min: int
-    duracao_real_min: Optional[int] = None
-    total_exercicios: int
+    name: str
+    category: TrainingCategory
+    status: TrainingStatus
+    estimated_duration_min: int
+    actual_duration_min: Optional[int] = None
     created_at: datetime
-    finalizado_em: Optional[datetime] = None
-    
+    exercise_count: int = 0
+
     model_config = ConfigDict(from_attributes=True)
 
-class TreinoIniciar(BaseModel):
-    """Schema para iniciar um treino"""
-    observacoes_iniciais: Optional[str] = Field(None, max_length=500)
 
-class TreinoFinalizar(BaseModel):
-    """Schema para finalizar um treino"""
-    duracao_real_min: int = Field(..., gt=0, le=480)
-    calorias_queimadas: Optional[float] = Field(None, ge=0, le=2000)
-    volume_total_kg: Optional[float] = Field(None, ge=0, le=100000)
-    dificuldade_percebida: int = Field(..., ge=1, le=10, description="RPE - Rate of Perceived Exertion")
-    satisfacao: int = Field(..., ge=1, le=5, description="Satisfação de 1 a 5 estrelas")
-    observacoes: Optional[str] = Field(None, max_length=1000)
+class TrainingStats(BaseModel):
+    """Training statistics for dashboard"""
+    total_trainings: int = 0
+    completed_trainings: int = 0
+    total_duration_min: int = 0
+    average_duration_min: float = 0
+    total_calories_burned: float = 0
+    total_volume_kg: float = 0
+    favorite_category: Optional[TrainingCategory] = None
+    current_streak_days: int = 0
+    best_streak_days: int = 0
 
-# Schemas para Templates de Treino
-class TemplateTreinoBase(BaseModel):
-    nome: str = Field(..., min_length=1, max_length=255, example="Template Push/Pull/Legs")
-    descricao: Optional[str] = Field(None, max_length=1000)
-    categoria: CategoriaTreino = Field(default=CategoriaTreino.FORCA)
-    nivel_dificuldade: str = Field(default="iniciante", pattern="^(iniciante|intermediario|avancado)$")
-    duracao_estimada_min: int = Field(default=60, ge=15, le=300)
-    is_publico: bool = Field(default=False, description="Se o template é público para outros usuários")
 
-class ExercicioTemplateCreate(BaseModel):
-    exercicio_id: int
-    ordem: int = Field(..., ge=1, le=50, description="Ordem do exercício no template")
-    series_sugeridas: int = Field(..., gt=0, le=20)
-    repeticoes_sugeridas: int = Field(..., gt=0, le=500)
-    peso_sugerido_kg: Optional[float] = Field(None, gt=0, le=1000)
-    tempo_descanso_seg: int = Field(default=60, ge=0, le=600)
-    observacoes: Optional[str] = Field(None, max_length=500)
-
-class ExercicioTemplateOut(ExercicioTemplateCreate):
-    id: int
-    template_id: int
-    exercicio: ExercicioSummary
-    model_config = ConfigDict(from_attributes=True)
-
-class TemplateTreinoCreate(TemplateTreinoBase):
-    exercicios: List[ExercicioTemplateCreate] = Field(..., min_length=1, max_length=20)
-    model_config = ConfigDict(extra='forbid')
-
-class TemplateTreinoUpdate(BaseModel):
-    nome: Optional[str] = Field(None, min_length=1, max_length=255)
-    descricao: Optional[str] = Field(None, max_length=1000)
-    categoria: Optional[CategoriaTreino] = None
-    nivel_dificuldade: Optional[str] = Field(None, pattern="^(iniciante|intermediario|avancado)$")
-    duracao_estimada_min: Optional[int] = Field(None, ge=15, le=300)
-    is_publico: Optional[bool] = None
-    model_config = ConfigDict(extra='forbid')
-
-class TemplateTreinoOut(TemplateTreinoBase):
-    id: int
-    criador_id: int
-    exercicios: List[ExercicioTemplateOut] = []
-    total_exercicios: int
-    vezes_usado: int = 0
-    avaliacao_media: Optional[float] = None
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-    model_config = ConfigDict(from_attributes=True)
-
-class TemplateTreinoSummary(BaseModel):
-    """Resumo do template para listas"""
-    id: int
-    nome: str
-    categoria: CategoriaTreino
-    nivel_dificuldade: str
-    duracao_estimada_min: int
-    total_exercicios: int
-    vezes_usado: int
-    avaliacao_media: Optional[float] = None
-    is_publico: bool
-    criador_nome: Optional[str] = None  # Nome do criador se for template público
-    model_config = ConfigDict(from_attributes=True)
-
-class CriarTreinoDeTemplate(BaseModel):
-    """Schema para criar treino a partir de template"""
-    template_id: int
-    nome_treino: Optional[str] = Field(None, min_length=1, max_length=255)
-    observacoes: Optional[str] = Field(None, max_length=500)
-
-# Schemas para Estatísticas
-class TreinoStats(BaseModel):
-    """Estatísticas de treinos do usuário"""
-    total_treinos: int = 0
-    treinos_concluidos: int = 0
-    treinos_em_andamento: int = 0
-    tempo_total_min: int = 0
-    calorias_total: float = 0
-    volume_total_kg: float = 0
-    categoria_favorita: Optional[CategoriaTreino] = None
-    streak_atual: int = 0  # Dias consecutivos treinando
-    melhor_streak: int = 0
-
-class TreinoFilter(BaseModel):
-    """Filtros para busca de treinos"""
-    categoria: Optional[CategoriaTreino] = None
-    status: Optional[StatusTreino] = None
-    nivel_dificuldade: Optional[str] = Field(None, pattern="^(iniciante|intermediario|avancado)$")
-    data_inicio: Optional[datetime] = None
-    data_fim: Optional[datetime] = None
-    nome_contains: Optional[str] = Field(None, max_length=100)
-    duracao_min: Optional[int] = Field(None, ge=15)
-    duracao_max: Optional[int] = Field(None, le=300)
-
-class TemplateFilter(BaseModel):
-    """Filtros para busca de templates"""
-    categoria: Optional[CategoriaTreino] = None
-    nivel_dificuldade: Optional[str] = Field(None, pattern="^(iniciante|intermediario|avancado)$")
-    is_publico: Optional[bool] = None
-    criador_id: Optional[int] = None
-    nome_contains: Optional[str] = Field(None, max_length=100)
+class TrainingFilter(BaseModel):
+    """Filter options for training searches"""
+    category: Optional[TrainingCategory] = None
+    status: Optional[TrainingStatus] = None
+    min_duration: Optional[int] = Field(None, ge=1)
+    max_duration: Optional[int] = Field(None, ge=1)
+    date_from: Optional[datetime] = None
+    date_to: Optional[datetime] = None
