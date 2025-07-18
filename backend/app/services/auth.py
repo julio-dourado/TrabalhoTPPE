@@ -3,7 +3,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from app.models.user import User
 from app.schemas.user import UserCreate
-from app.schemas.auth import LoginRequest, RegisterRequest, LoginResponse, RegisterResponse
+from app.schemas.auth import LoginRequest, UserRegistrationRequest, LoginResponse
 from app.security.password import verify_password, get_password_hash
 from app.security.jwt import create_access_token, verify_token
 
@@ -26,7 +26,7 @@ class AuthService:
         )
     
     @staticmethod
-    def register_user(db: Session, register_data: RegisterRequest) -> Optional[RegisterResponse]:
+    def register_user(db: Session, register_data: UserRegistrationRequest) -> Optional[User]:
         """Register a new user"""
         # Check if user already exists
         if check_user_exists(db, register_data.email):
@@ -44,12 +44,7 @@ class AuthService:
         )
         
         user = create_user(db, user_data)
-        return RegisterResponse(
-            id=user.id,
-            name=user.name,
-            email=user.email,
-            is_active=user.is_active
-        )
+        return user
     
     @staticmethod
     def get_current_user(db: Session, token: str) -> Optional[User]:
