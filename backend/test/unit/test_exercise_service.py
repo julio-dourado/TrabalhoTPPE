@@ -91,6 +91,8 @@ class TestExerciseService:
             reps=8,
             comment="Test",
             instructions="Test instructions",
+            rest_time_sec=90,
+            is_compound=True,
             equipment="Barbell",
             exercise_type=ExerciseType.WITH_WEIGHT,
             with_weight_details=WithWeightCreate(
@@ -132,6 +134,8 @@ class TestExerciseService:
             reps=1,
             comment="Test cardio",
             instructions="Test cardio instructions",
+            rest_time_sec=60,
+            is_compound=False,
             equipment="None",
             exercise_type=ExerciseType.WITHOUT_WEIGHT,
             without_weight_details=WithoutWeightCreate(
