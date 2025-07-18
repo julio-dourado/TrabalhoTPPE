@@ -71,14 +71,14 @@ class Training(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
-    user = relationship("User", back_populates="trainings")
-    exercises = relationship(
-        "Exercise", secondary=training_exercise_link, back_populates="trainings"
-    )
-    execution_history = relationship(
-        "ExecutionHistory", back_populates="training", cascade="all, delete-orphan"
-    )
+    # Relationships (comentados temporariamente)
+    # user = relationship("User", back_populates="trainings")
+    # exercises = relationship(
+    #     "Exercise", secondary=training_exercise_link, back_populates="trainings"
+    # )
+    # execution_history = relationship(
+    #     "ExecutionHistory", back_populates="training", cascade="all, delete-orphan"
+    # )
 
 
 class TrainingTemplate(Base):
@@ -103,11 +103,11 @@ class TrainingTemplate(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
-    creator = relationship("User", back_populates="training_templates")
-    exercise_templates = relationship(
-        "ExerciseTemplate", back_populates="template", cascade="all, delete-orphan"
-    )
+    # Relationships (comentados temporariamente)
+    # creator = relationship("User", back_populates="training_templates")
+    # exercise_templates = relationship(
+    #     "ExerciseTemplate", back_populates="template", cascade="all, delete-orphan"
+    # )
 
 
 class ExerciseTemplate(Base):
@@ -129,6 +129,6 @@ class ExerciseTemplate(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
-    template = relationship("TrainingTemplate", back_populates="exercise_templates")
-    exercise = relationship("Exercise")
+    # Relationships (comentados temporariamente)
+    # template = relationship("TrainingTemplate", back_populates="exercise_templates")
+    # exercise = relationship("Exercise")

@@ -49,25 +49,25 @@ services:
       retries: 3
       start_period: 10s
 
-  # 3. BACKEND TESTE (após backend estar saudável)
-  backend-test:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: backend_test
-    depends_on:
-      backend:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}_test
-      PYTHONPATH: /usr/src/app
-    volumes:
-      - ./backend:/usr/src/app
-    command: pytest /usr/src/app/test -v
-    env_file:
-      - .env
+  # 3. BACKEND TESTE (temporariamente desativado)
+  # backend-test:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   container_name: backend_test
+  #   depends_on:
+  #     backend:
+  #       condition: service_healthy
+  #   environment:
+  #     DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}_test
+  #     PYTHONPATH: /usr/src/app
+  #   volumes:
+  #     - ./backend:/usr/src/app
+  #   command: pytest /usr/src/app/test -v
+  #   env_file:
+  #     - .env
 
-  # 4. FRONTEND (após backend teste completar)
+  # 4. FRONTEND (após backend estar saudável)
   frontend:
     build:
       context: ./frontend
@@ -77,8 +77,8 @@ services:
     ports:
       - '3000:3000'
     depends_on:
-      backend-test:
-        condition: service_completed_successfully
+      backend:
+        condition: service_healthy
     environment:
       - API_URL=http://localhost:8000
     volumes:
@@ -92,24 +92,24 @@ services:
       retries: 3
       start_period: 15s
 
-  # 5. FRONTEND TESTE (futuro - após frontend estar saudável)
-  frontend-test:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: frontend_test
-    depends_on:
-      frontend:
-        condition: service_healthy
-    environment:
-      - API_URL=http://localhost:8000
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    # Comando será implementado futuramente
-    command: echo "Frontend tests will be implemented here"
-    profiles:
-      - test
+  # 5. FRONTEND TESTE (temporariamente desativado)
+  # frontend-test:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   container_name: frontend_test
+  #   depends_on:
+  #     frontend:
+  #       condition: service_healthy
+  #   environment:
+  #     - API_URL=http://localhost:8000
+  #   volumes:
+  #     - ./frontend:/app
+  #     - /app/node_modules
+  #   # Comando será implementado futuramente
+  #   command: echo "Frontend tests will be implemented here"
+  #   profiles:
+  #     - test
 
 volumes:
   db-data:

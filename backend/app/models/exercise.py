@@ -63,24 +63,25 @@ class Exercise(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    with_weight_details = relationship(
-        "WithWeight",
-        back_populates="exercise",
-        uselist=False,
-        cascade="all, delete-orphan",
-    )
-    without_weight_details = relationship(
-        "WithoutWeight",
-        back_populates="exercise",
-        uselist=False,
-        cascade="all, delete-orphan",
-    )
-    trainings = relationship(
-        "Training", secondary="treino_exercicio", back_populates="exercises"
-    )
-    execution_history = relationship(
-        "ExecutionHistory", back_populates="exercise", cascade="all, delete-orphan"
-    )
+    # Relationships (comentados temporariamente)
+    # with_weight_details = relationship(
+    #     "WithWeight",
+    #     back_populates="exercise",
+    #     uselist=False,
+    #     cascade="all, delete-orphan",
+    # )
+    # without_weight_details = relationship(
+    #     "WithoutWeight",
+    #     back_populates="exercise",
+    #     uselist=False,
+    #     cascade="all, delete-orphan",
+    # )
+    # trainings = relationship(
+    #     "Training", secondary="treino_exercicio", back_populates="exercises"
+    # )
+    # execution_history = relationship(
+    #     "ExecutionHistory", back_populates="exercise", cascade="all, delete-orphan"
+    # )
 
 
 class WithWeight(Base):
@@ -96,7 +97,7 @@ class WithWeight(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    exercise = relationship("Exercise", back_populates="with_weight_details")
+    # exercise = relationship("Exercise", back_populates="with_weight_details")
 
 
 class WithoutWeight(Base):
@@ -113,7 +114,7 @@ class WithoutWeight(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    exercise = relationship("Exercise", back_populates="without_weight_details")
+    # exercise = relationship("Exercise", back_populates="without_weight_details")
 
 
 class ExecutionHistory(Base):
@@ -136,7 +137,7 @@ class ExecutionHistory(Base):
     executed_at = Column(DateTime(timezone=True), server_default=func.now())
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    # Relationships
-    user = relationship("User", back_populates="exercise_history")
-    exercise = relationship("Exercise", back_populates="execution_history")
-    training = relationship("Training", back_populates="execution_history")
+    # Relationships (comentados temporariamente)
+    # user = relationship("User", back_populates="exercise_history")
+    # exercise = relationship("Exercise", back_populates="execution_history")
+    # training = relationship("Training", back_populates="execution_history")

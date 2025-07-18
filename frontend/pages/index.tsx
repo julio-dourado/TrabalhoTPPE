@@ -1,128 +1,63 @@
-import { useState, useEffect } from 'react'
-import { testService } from '@/services/api'
-import { Activity, Heart, Dumbbell, User, CheckCircle } from 'lucide-react'
+import { useEffect } from 'react'
+import { useRouter } from 'next/router'
+import Link from 'next/link'
+import { Activity, LogIn, UserPlus } from 'lucide-react'
 
 export default function Home() {
-  const [apiMessage, setApiMessage] = useState<string>('')
-  const [isLoading, setIsLoading] = useState(true)
-  const [isConnected, setIsConnected] = useState(false)
+  const router = useRouter()
 
   useEffect(() => {
-    const testConnection = async () => {
-      try {
-        setIsLoading(true)
-        const response = await testService.getRoot()
-        setApiMessage(response.message)
-        setIsConnected(true)
-      } catch (error) {
-        console.error('Erro ao conectar com a API:', error)
-        setApiMessage('Erro ao conectar com o backend')
-        setIsConnected(false)
-      } finally {
-        setIsLoading(false)
-      }
+    // Se já estiver logado, redireciona para dashboard
+    const token = localStorage.getItem('token')
+    if (token) {
+      router.push('/dashboard')
     }
-
-    testConnection()
   }, [])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div className="flex justify-center items-center gap-2 mb-4">
-            <Activity className="w-8 h-8 text-primary-600" />
-            <h1 className="text-4xl font-bold text-gray-900">Training App</h1>
-          </div>
-          <p className="text-xl text-gray-600">
-            Sistema de gerenciamento de treinos e exercícios
-          </p>
-        </div>
-
-        {/* Status de Conexão */}
-        <div className="max-w-md mx-auto mb-8">
-          <div className="card">
-            <div className="flex items-center justify-center gap-3 mb-4">
-              {isLoading ? (
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
-              ) : isConnected ? (
-                <CheckCircle className="w-6 h-6 text-green-600" />
-              ) : (
-                <div className="w-6 h-6 rounded-full bg-red-600"></div>
-              )}
-              <h2 className="text-lg font-semibold">Status da Conexão</h2>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8">
+          {/* Logo e Título */}
+          <div className="text-center">
+            <div className="flex justify-center items-center gap-3 mb-6">
+              <Activity className="w-12 h-12 text-blue-600" />
+              <h1 className="text-4xl font-bold text-gray-900">Training App</h1>
             </div>
-
-            {isLoading ? (
-              <p className="text-center text-gray-600">Conectando com o backend...</p>
-            ) : (
-              <div className="text-center">
-                <p className={`font-medium ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
-                  {isConnected ? 'Conectado com sucesso!' : 'Erro de conexão'}
-                </p>
-                <p className="text-sm text-gray-600 mt-2 p-3 bg-gray-100 rounded-lg">
-                  {apiMessage}
-                </p>
-              </div>
-            )}
+            <h2 className="text-xl text-gray-600 mb-8">
+              Sistema de gerenciamento de treinos e exercícios
+            </h2>
           </div>
-        </div>
 
-        {/* Features */}
-        <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-          <div className="card text-center">
-            <div className="flex justify-center mb-4">
-              <User className="w-12 h-12 text-primary-600" />
+          {/* Botões de Ação */}
+          <div className="space-y-4">
+            <Link href="/login">
+              <button className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                <LogIn className="h-5 w-5 mr-2" />
+                Fazer Login
+              </button>
+            </Link>
+            
+            <Link href="/register">
+              <button className="group relative w-full flex justify-center py-3 px-4 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+                <UserPlus className="h-5 w-5 mr-2" />
+                Criar Conta
+              </button>
+            </Link>
+          </div>
+
+          {/* Features */}
+          <div className="mt-12 grid grid-cols-1 gap-4 text-center">
+            <div className="bg-white/50 rounded-lg p-4">
+              <Activity className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+              <h3 className="font-semibold text-gray-900">Gerencie seus Treinos</h3>
+              <p className="text-sm text-gray-600">Crie e organize suas rotinas de exercícios</p>
             </div>
-            <h3 className="text-xl font-semibold mb-2">Usuários</h3>
-            <p className="text-gray-600">
-              Gerencie contas de usuários e perfis personalizados
-            </p>
-          </div>
-
-          <div className="card text-center">
-            <div className="flex justify-center mb-4">
-              <Dumbbell className="w-12 h-12 text-primary-600" />
-            </div>
-            <h3 className="text-xl font-semibold mb-2">Exercícios</h3>
-            <p className="text-gray-600">
-              Catálogo completo de exercícios organizados por grupos musculares
-            </p>
-          </div>
-
-          <div className="card text-center">
-            <div className="flex justify-center mb-4">
-              <Heart className="w-12 h-12 text-primary-600" />
-            </div>
-            <h3 className="text-xl font-semibold mb-2">Treinos</h3>
-            <p className="text-gray-600">
-              Crie e gerencie rotinas de treino personalizadas
-            </p>
-          </div>
-        </div>
-
-        {/* API Info */}
-        <div className="max-w-2xl mx-auto mt-12">
-          <div className="card">
-            <h3 className="text-lg font-semibold mb-3 text-center">Informações da API</h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Backend URL:</span>
-                <span className="font-mono text-primary-600">
-                  {process.env.API_URL || 'http://localhost:8000'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Status:</span>
-                <span className={`font-medium ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
-                  {isConnected ? 'Online' : 'Offline'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Versão:</span>
-                <span className="font-mono">v1.0.0</span>
-              </div>
+            
+            <div className="bg-white/50 rounded-lg p-4">
+              <Activity className="w-8 h-8 text-green-600 mx-auto mb-2" />
+              <h3 className="font-semibold text-gray-900">Acompanhe seu Progresso</h3>
+              <p className="text-sm text-gray-600">Visualize estatísticas e evolução</p>
             </div>
           </div>
         </div>
