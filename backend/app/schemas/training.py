@@ -1,7 +1,7 @@
 from typing import List, Optional
 from pydantic import BaseModel, Field
 from datetime import datetime
-from app.schemas.exercise import ExerciseOut
+from app.schemas.exercise import ExerciseOut, ExerciseCreate
 from app.models.training import TrainingCategory, TrainingStatus
 
 
@@ -22,6 +22,12 @@ class TrainingCreate(TrainingBase):
     )
 
 
+class TrainingCreateWithExercises(TrainingBase):
+    exercises: List[ExerciseCreate] = Field(
+        default_factory=list, description="List of complete exercise objects"
+    )
+
+
 class TrainingUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = Field(None, max_length=1000)
@@ -33,9 +39,9 @@ class TrainingUpdate(BaseModel):
     actual_duration_min: Optional[int] = Field(None, ge=1, le=600)
     calories_burned: Optional[float] = Field(None, ge=0, le=2000)
     total_volume_kg: Optional[float] = Field(None, ge=0, le=50000)
-    # Rating fields (1-5 scale)
+    # Rating fields (1-10 scale for difficulty, 1-5 for satisfaction)
     perceived_difficulty: Optional[int] = Field(
-        None, ge=1, le=5, example=3
+        None, ge=1, le=10, example=7
     )
     satisfaction: Optional[int] = Field(
         None, ge=1, le=5, example=4
@@ -81,7 +87,7 @@ class TrainingStatistics(BaseModel):
         ..., ge=0, le=5, description="Average satisfaction rating"
     )
     average_difficulty: float = Field(
-        ..., ge=0, le=5, description="Average difficulty rating"
+        ..., ge=0, le=10, description="Average difficulty rating"
     )
     completed_trainings: int = Field(
         ..., ge=0, description="Number of completed trainings"
