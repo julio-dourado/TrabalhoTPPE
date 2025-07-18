@@ -12,6 +12,7 @@ from .exercise_service import (
 )
 from .training_service import (
     create_training,
+    create_training_with_exercises,
     get_training_by_id,
     get_user_trainings,
     update_training,
@@ -31,6 +32,7 @@ __all__ = [
     "get_exercises_by_muscle_group",
     "get_exercises_by_difficulty",
     "create_training",
+    "create_training_with_exercises",
     "get_training_by_id",
     "get_user_trainings",
     "update_training",
