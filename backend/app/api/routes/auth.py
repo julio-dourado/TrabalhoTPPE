@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
-from app.schemas.auth import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse
+from app.schemas.auth import LoginRequest, LoginResponse, UserRegistrationRequest
+from app.schemas.user import UserOut
 from app.services.auth import AuthService
 
 router = APIRouter()
@@ -13,7 +14,12 @@ def login(login_data: LoginRequest, db: Session = Depends(get_db)):
     """Login user"""
     try:
         result = AuthService.login_user(db, login_data)
-        return LoginResponse(**result)
+        if result is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid credentials"
+            )
+        return result
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -21,12 +27,17 @@ def login(login_data: LoginRequest, db: Session = Depends(get_db)):
         )
 
 
-@router.post("/register", response_model=RegisterResponse)
-def register(register_data: RegisterRequest, db: Session = Depends(get_db)):
+@router.post("/register", response_model=UserOut)
+def register(register_data: UserRegistrationRequest, db: Session = Depends(get_db)):
     """Register a new user"""
     try:
         result = AuthService.register_user(db, register_data)
-        return RegisterResponse(**result)
+        if result is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User already exists or passwords don't match"
+            )
+        return UserOut.model_validate(result)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

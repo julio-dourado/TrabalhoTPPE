@@ -6,12 +6,14 @@ from app.models.training import Training, TrainingStatus
 from app.models.exercise import Exercise
 from app.schemas.training import (
     TrainingCreate,
+    TrainingCreateWithExercises,
     TrainingUpdate,
     TrainingOut,
     TrainingFilters,
     TrainingStatistics,
 )
 from app.schemas.exercise import ExerciseOut, WithWeightOut, WithoutWeightOut
+from app.services.exercise_service import create_exercise
 
 
 def _convert_exercise_model_to_out_schema(exercise_model: Exercise) -> ExerciseOut:
@@ -75,6 +77,60 @@ def create_training(db: Session, training_data: TrainingCreate,
     # Add exercises to the training
     for exercise_id in training_data.exercises:
         exercise = _create_exercise_details_in_db(db, exercise_id, None)
+        db_training.exercises.append(exercise)
+
+    db.add(db_training)
+    db.flush()
+    db.commit()
+    db.refresh(db_training)
+
+    # Convert to output schema
+    return TrainingOut(
+        id=db_training.id,
+        name=db_training.name,
+        description=db_training.description,
+        category=db_training.category,
+        estimated_duration_min=db_training.estimated_duration_min,
+        user_id=db_training.user_id,
+        status=db_training.status,
+        actual_duration_min=db_training.actual_duration_min,
+        calories_burned=db_training.calories_burned,
+        total_volume_kg=db_training.total_volume_kg,
+        perceived_difficulty=db_training.perceived_difficulty,
+        satisfaction=db_training.satisfaction,
+        observations=db_training.observations,
+        created_at=db_training.created_at,
+        updated_at=db_training.updated_at,
+        started_at=db_training.started_at,
+        finished_at=db_training.finished_at,
+        exercises=[
+            _convert_exercise_model_to_out_schema(e)
+            for e in db_training.exercises
+        ],
+    )
+
+
+def create_training_with_exercises(db: Session, training_data: TrainingCreateWithExercises, user_id: int) -> TrainingOut:
+    """Create a new training with complete exercise objects"""
+    
+    # Create the training instance
+    db_training = Training(
+        name=training_data.name,
+        description=training_data.description,
+        category=training_data.category,
+        estimated_duration_min=training_data.estimated_duration_min,
+        user_id=user_id,
+        status=TrainingStatus.PLANNED,
+        created_at=datetime.utcnow(),
+    )
+
+    # Create exercises and add to training
+    for exercise_data in training_data.exercises:
+        # Create exercise using exercise service
+        exercise_out = create_exercise(db, exercise_data)
+        
+        # Get the exercise from db
+        exercise = db.query(Exercise).filter(Exercise.id == exercise_out.id).first()
         db_training.exercises.append(exercise)
 
     db.add(db_training)
