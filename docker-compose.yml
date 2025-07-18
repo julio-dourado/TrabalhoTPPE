@@ -1,8 +1,7 @@
 # docker-compose.yml
 
-version: '3.8'
-
 services:
+  # 1. BANCO DE DADOS (primeiro a subir)
   db:
     image: postgres:15
     container_name: postgres_db
@@ -23,15 +22,15 @@ services:
       timeout: 5s
       retries: 5
 
-  # Serviço para rodar a APLICAÇÃO (servidor web)
+  # 2. BACKEND (após banco estar saudável)
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: backend_app # Nome mais claro
-    restart: always # 'always' é melhor para desenvolvimento
+    container_name: backend_app
+    restart: always
     ports:
-      - '8000:8000' # Expõe a porta da API
+      - '8000:8000'
     depends_on:
       db:
         condition: service_healthy
@@ -40,30 +39,77 @@ services:
       PYTHONPATH: /usr/src/app
     volumes:
       - ./backend:/usr/src/app
-    # Comando para INICIAR O SERVIDOR WEB
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     env_file:
       - .env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
-  # Serviço para rodar os TESTES
+  # 3. BACKEND TESTE (após backend estar saudável)
   backend-test:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: backend_test # Nome mais claro
+    container_name: backend_test
     depends_on:
-      db:
+      backend:
         condition: service_healthy
     environment:
-      # O DATABASE_URL aqui deve apontar para um banco de TESTE
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}_test
       PYTHONPATH: /usr/src/app
     volumes:
       - ./backend:/usr/src/app
-    # Comando para RODAR OS TESTES
     command: pytest /usr/src/app/test -v
     env_file:
       - .env
+
+  # 4. FRONTEND (após backend teste completar)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend_app
+    restart: always
+    ports:
+      - '3000:3000'
+    depends_on:
+      backend-test:
+        condition: service_completed_successfully
+    environment:
+      - API_URL=http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # 5. FRONTEND TESTE (futuro - após frontend estar saudável)
+  frontend-test:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend_test
+    depends_on:
+      frontend:
+        condition: service_healthy
+    environment:
+      - API_URL=http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    # Comando será implementado futuramente
+    command: echo "Frontend tests will be implemented here"
+    profiles:
+      - test
 
 volumes:
   db-data:

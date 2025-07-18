@@ -63,6 +63,69 @@
 
 ---
 
+## Arquitetura do Sistema
+
+Este projeto segue uma arquitetura de microsserviços com:
+
+### Backend (API)
+- **FastAPI** - Framework web Python
+- **PostgreSQL** - Banco de dados relacional
+- **SQLAlchemy** - ORM para Python
+- **JWT** - Autenticação via tokens
+- **Pytest** - Testes unitários e de integração
+
+### Frontend (Web)
+- **Next.js 14** - Framework React
+- **TypeScript** - Tipagem estática
+- **Tailwind CSS** - Framework CSS utilitário
+- **Axios** - Cliente HTTP para comunicação com a API
+
+### Containerização
+- **Docker** - Containerização dos serviços
+- **Docker Compose** - Orquestração dos containers
+
+## Como Executar
+
+### Pré-requisitos
+- Docker e Docker Compose instalados
+- Arquivo `.env` configurado (use `.env.example` como base)
+
+### Executar toda a aplicação
+
+```bash
+# Clonar o repositório
+git clone <url-do-repositorio>
+cd TrabalhoTPPE
+
+# Criar arquivo .env (copie do .env.example e ajuste conforme necessário)
+cp .env.example .env
+
+# Subir todos os serviços
+docker-compose up --build
+
+# Ou em modo detached (segundo plano)
+docker-compose up -d --build
+```
+
+### Acessar os serviços
+
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **Documentação da API**: http://localhost:8000/docs
+- **PostgreSQL**: localhost:2543
+
+### Executar apenas o backend
+
+```bash
+docker-compose up db backend --build
+```
+
+### Executar testes
+
+```bash
+docker-compose run backend-test
+```
+
 ## Diagrama UML
 
 ![Diagrama UML](./Assets/UML.svg)
