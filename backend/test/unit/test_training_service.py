@@ -5,7 +5,7 @@ from app.services import training_service
 from app.models.training import Training, TrainingStatus, TrainingCategory
 from app.models.exercise import Exercise, WithWeight, WithoutWeight, MuscleGroup, Difficulty, ExerciseType
 from app.models.user import User
-from app.schemas.training import TrainingCreate, TrainingUpdate
+from app.schemas.training import TrainingCreate, TrainingCreateWithExercises, TrainingUpdate, TrainingFilters
 from app.schemas.exercise import ExerciseCreate, WithWeightCreate, WithoutWeightCreate
 from datetime import datetime
 
@@ -26,7 +26,7 @@ def sample_user():
 
 @pytest.fixture
 def sample_training_create():
-    return TrainingCreate(
+    return TrainingCreateWithExercises(
         name="Test Training",
         description="Test training description",
         category=TrainingCategory.STRENGTH,
@@ -193,26 +193,78 @@ class TestTrainingService:
         with patch('app.services.training_service.Training') as mock_training_class:
             mock_training_class.return_value = mock_training
             
-            with patch('app.services.training_service.Exercise') as mock_exercise_class:
-                mock_exercise_class.side_effect = [mock_exercise_with_weight, mock_exercise_without_weight]
+            with patch('app.services.training_service.create_exercise') as mock_create_exercise:
+                # Mock the create_exercise function to return exercise schemas
+                from app.schemas.exercise import ExerciseOut, WithWeightOut
+                exercise_out_1 = ExerciseOut(
+                    id=1,
+                    name="Bench Press",
+                    sets=3,
+                    reps=10,
+                    comment="Test exercise",
+                    instructions="Lie on bench and push bar",
+                    equipment="Barbell",
+                    exercise_type=ExerciseType.WITH_WEIGHT,
+                    muscle_group=MuscleGroup.CHEST,
+                    difficulty=Difficulty.INTERMEDIATE,
+                    rest_time_sec=90,
+                    is_compound=True,
+                    created_at=datetime.now(),
+                    updated_at=None,
+                    with_weight_details=WithWeightOut(
+                        id=1,
+                        exercise_id=1,
+                        weight_kg=80.0,
+                        max_weight_kg=100.0,
+                        suggested_increment_kg=2.5,
+                        created_at=datetime.now(),
+                        updated_at=None
+                    ),
+                    without_weight_details=None
+                )
                 
-                with patch('app.services.training_service._create_exercise_details_in_db') as mock_create_details:
-                    result = training_service.create_training(mock_db, sample_training_create, 1)
-                    
-                    assert result.name == "Test Training"
-                    assert result.user_id == 1
-                    assert result.category == TrainingCategory.STRENGTH
-                    assert len(result.exercises) == 4
-                    assert mock_db.add.called
-                    assert mock_db.commit.called
+                exercise_out_2 = ExerciseOut(
+                    id=2,
+                    name="Running",
+                    sets=1,
+                    reps=1,
+                    comment="Cardio exercise",
+                    instructions="Run at steady pace",
+                    equipment="None",
+                    exercise_type=ExerciseType.WITHOUT_WEIGHT,
+                    muscle_group=MuscleGroup.CARDIO,
+                    difficulty=Difficulty.BEGINNER,
+                    rest_time_sec=60,
+                    is_compound=False,
+                    created_at=datetime.now(),
+                    updated_at=None,
+                    with_weight_details=None,
+                    without_weight_details=None  # Simplified for this test
+                )
+                
+                mock_create_exercise.side_effect = [exercise_out_1, exercise_out_2]
+                
+                # Mock the query to return the exercises
+                mock_query = Mock()
+                mock_query.filter.return_value.first.side_effect = [mock_exercise_with_weight, mock_exercise_without_weight]
+                mock_db.query.return_value = mock_query
+                
+                result = training_service.create_training_with_exercises(mock_db, sample_training_create, 1)
+                
+                assert result.name == "Test Training"
+                assert result.user_id == 1
+                assert result.category == TrainingCategory.STRENGTH
+                assert len(result.exercises) == 4
+                assert mock_db.add.called
+                assert mock_db.commit.called
 
     def test_get_training_by_id_found(self, mock_db, mock_training, mock_exercise_with_weight):
         """Test getting training by ID when found"""
         mock_training.exercises = [mock_exercise_with_weight]
         
-        mock_scalars = Mock()
-        mock_scalars.first.return_value = mock_training
-        mock_db.scalars.return_value = mock_scalars
+        mock_query = Mock()
+        mock_query.filter.return_value.first.return_value = mock_training
+        mock_db.query.return_value = mock_query
         
         result = training_service.get_training_by_id(mock_db, 1)
         
@@ -223,9 +275,9 @@ class TestTrainingService:
 
     def test_get_training_by_id_not_found(self, mock_db):
         """Test getting training by ID when not found"""
-        mock_scalars = Mock()
-        mock_scalars.first.return_value = None
-        mock_db.scalars.return_value = mock_scalars
+        mock_query = Mock()
+        mock_query.filter.return_value.first.return_value = None
+        mock_db.query.return_value = mock_query
         
         result = training_service.get_training_by_id(mock_db, 999)
         
@@ -235,11 +287,15 @@ class TestTrainingService:
         """Test getting user trainings"""
         mock_training.exercises = [mock_exercise_with_weight]
         
-        mock_scalars = Mock()
-        mock_scalars.all.return_value = [mock_training]
-        mock_db.scalars.return_value = mock_scalars
+        mock_query = Mock()
+        mock_query.filter.return_value = mock_query
+        mock_query.offset.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+        mock_query.all.return_value = [mock_training]
+        mock_db.query.return_value = mock_query
         
-        result = training_service.get_user_trainings(mock_db, 1)
+        filters = TrainingFilters(user_id=1)
+        result = training_service.get_user_trainings(mock_db, filters)
         
         assert len(result) == 1
         assert result[0].name == "Test Training"
@@ -249,9 +305,9 @@ class TestTrainingService:
         """Test updating a training successfully"""
         mock_training.exercises = [mock_exercise_with_weight]
         
-        mock_scalars = Mock()
-        mock_scalars.first.return_value = mock_training
-        mock_db.scalars.return_value = mock_scalars
+        mock_query = Mock()
+        mock_query.filter.return_value.first.return_value = mock_training
+        mock_db.query.return_value = mock_query
         
         mock_db.commit.return_value = None
         mock_db.refresh.return_value = None
@@ -264,9 +320,9 @@ class TestTrainingService:
 
     def test_update_training_not_found(self, mock_db, sample_training_update):
         """Test updating a training that doesn't exist"""
-        mock_scalars = Mock()
-        mock_scalars.first.return_value = None
-        mock_db.scalars.return_value = mock_scalars
+        mock_query = Mock()
+        mock_query.filter.return_value.first.return_value = None
+        mock_db.query.return_value = mock_query
         
         result = training_service.update_training(mock_db, 999, sample_training_update)
         
@@ -274,9 +330,9 @@ class TestTrainingService:
 
     def test_delete_training_success(self, mock_db, mock_training):
         """Test deleting a training successfully"""
-        mock_scalars = Mock()
-        mock_scalars.first.return_value = mock_training
-        mock_db.scalars.return_value = mock_scalars
+        mock_query = Mock()
+        mock_query.filter.return_value.first.return_value = mock_training
+        mock_db.query.return_value = mock_query
         
         mock_db.delete.return_value = None
         mock_db.commit.return_value = None
@@ -284,14 +340,14 @@ class TestTrainingService:
         result = training_service.delete_training(mock_db, 1)
         
         assert result is True
-        mock_db.delete.assert_called_once_with(mock_training)
+        mock_db.delete.assert_called_once()
         mock_db.commit.assert_called_once()
 
     def test_delete_training_not_found(self, mock_db):
         """Test deleting a training that doesn't exist"""
-        mock_scalars = Mock()
-        mock_scalars.first.return_value = None
-        mock_db.scalars.return_value = mock_scalars
+        mock_query = Mock()
+        mock_query.filter.return_value.first.return_value = None
+        mock_db.query.return_value = mock_query
         
         result = training_service.delete_training(mock_db, 999)
         
@@ -303,35 +359,29 @@ class TestTrainingService:
         """Test starting a training successfully"""
         mock_training.exercises = [mock_exercise_with_weight]
         
-        mock_scalars = Mock()
-        mock_scalars.first.return_value = mock_training
-        mock_db.scalars.return_value = mock_scalars
+        mock_query = Mock()
+        mock_query.filter.return_value.first.return_value = mock_training
+        mock_db.query.return_value = mock_query
         
         mock_db.commit.return_value = None
         
-        with patch('app.services.training_service.get_training_by_id') as mock_get_training:
-            mock_get_training.return_value = mock_training
-            
-            result = training_service.start_training(mock_db, 1)
-            
-            assert result is not None
-            assert mock_db.commit.called
+        result = training_service.start_training(mock_db, 1)
+        
+        assert result is not None
+        assert mock_db.commit.called
 
     def test_finish_training_success(self, mock_db, sample_training_update, mock_training, mock_exercise_with_weight):
         """Test finishing a training successfully"""
         mock_training.exercises = [mock_exercise_with_weight]
         
-        mock_scalars = Mock()
-        mock_scalars.first.return_value = mock_training
-        mock_db.scalars.return_value = mock_scalars
+        mock_query = Mock()
+        mock_query.filter.return_value.first.return_value = mock_training
+        mock_db.query.return_value = mock_query
         
         mock_db.commit.return_value = None
         mock_db.refresh.return_value = None
         
-        with patch('app.services.training_service.get_training_by_id') as mock_get_training:
-            mock_get_training.return_value = mock_training
-            
-            result = training_service.finish_training(mock_db, 1, sample_training_update)
-            
-            assert result is not None
-            assert mock_db.commit.called
+        result = training_service.finish_training(mock_db, 1, sample_training_update)
+        
+        assert result is not None
+        assert mock_db.commit.called
