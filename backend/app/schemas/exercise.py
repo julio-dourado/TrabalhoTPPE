@@ -1,6 +1,6 @@
 # app/schemas/exercise.py
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from datetime import datetime
 from app.models.exercise import MuscleGroup, Difficulty, ExerciseType
 
@@ -81,6 +81,17 @@ class WithoutWeightOut(WithoutWeightBase):
 class ExerciseCreate(ExerciseBase):
     with_weight_details: Optional[WithWeightCreate] = None
     without_weight_details: Optional[WithoutWeightCreate] = None
+    
+    @model_validator(mode='before')
+    def validate_exercise_details(cls, values):
+        # Validar que os detalhes corretos estão presentes baseado no type
+        if values.get('exercise_type') == ExerciseType.WITH_WEIGHT:
+            if not values.get('with_weight_details'):
+                raise ValueError("with_weight_details é obrigatório para exercícios com peso")
+        elif values.get('exercise_type') == ExerciseType.WITHOUT_WEIGHT:
+            if not values.get('without_weight_details'):
+                raise ValueError("without_weight_details é obrigatório para exercícios sem peso")
+        return values
 
 
 class ExerciseOut(ExerciseBase):
