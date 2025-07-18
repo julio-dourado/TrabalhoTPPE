@@ -44,3 +44,7 @@ app.include_router(training.router, prefix="/api/v1/training", tags=["training"]
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the Training API!"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "version": "1.0.0"}

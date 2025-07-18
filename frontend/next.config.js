@@ -2,6 +2,15 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
+  trailingSlash: true,
+  exportPathMap: async function (
+    defaultPathMap,
+    { dev, dir, outDir, distDir, buildId }
+  ) {
+    return {
+      '/': { page: '/' },
+    }
+  },
   env: {
     API_URL: process.env.API_URL || 'http://localhost:8000',
   },
