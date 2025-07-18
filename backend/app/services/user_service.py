@@ -16,7 +16,16 @@ class UserService:
         db_user = User(
             name=user_data.name,
             email=user_data.email,
-            hashed_password=hashed_password,
+            password_hash=hashed_password,
+            birth_date=user_data.birth_date,
+            gender=user_data.gender,
+            height_cm=user_data.height_cm,
+            weight_kg=user_data.weight_kg,
+            activity_level=user_data.activity_level,
+            main_goal=user_data.main_goal,
+            training_experience_years=user_data.training_experience_years,
+            bio=user_data.bio,
+            target_weight_kg=user_data.target_weight_kg,
             is_active=True,
         )
         db.add(db_user)
@@ -50,7 +59,7 @@ class UserService:
         if user_data.name is not None:
             user.name = user_data.name
         if user_data.password is not None:
-            user.hashed_password = get_password_hash(user_data.password)
+            user.password_hash = get_password_hash(user_data.password)
         if user_data.birth_date is not None:
             user.birth_date = user_data.birth_date
         if user_data.gender is not None:
@@ -91,7 +100,7 @@ class UserService:
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             return False
-        return verify_password(password, user.hashed_password)
+        return verify_password(password, user.password_hash)
 
     @staticmethod
     def deactivate_user(db: Session, user_id: int) -> bool:

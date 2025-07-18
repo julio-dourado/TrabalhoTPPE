@@ -6,6 +6,7 @@ from app.api.deps import get_db, get_current_user
 from app.models.user import User
 from app.schemas.training import (
     TrainingCreate,
+    TrainingCreateWithExercises,
     TrainingUpdate,
     TrainingOut,
     TrainingFilters,
@@ -13,6 +14,7 @@ from app.schemas.training import (
 )
 from app.services.training_service import (
     create_training,
+    create_training_with_exercises,
     get_training_by_id,
     get_user_trainings,
     update_training,
@@ -28,13 +30,13 @@ router = APIRouter()
 @router.post("/", response_model=TrainingOut,
              status_code=status.HTTP_201_CREATED)
 def create_new_training(
-    training_data: TrainingCreate,
+    training_data: TrainingCreateWithExercises,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Create a new training"""
     try:
-        return create_training(db, training_data, current_user.id)
+        return create_training_with_exercises(db, training_data, current_user.id)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -16,6 +16,12 @@ def get_current_user(
     try:
         token = credentials.credentials
         user = AuthService.get_current_user(db, token)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         return user
     except ValueError as e:
         raise HTTPException(
