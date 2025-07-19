@@ -1,38 +1,27 @@
-# Versão do schema do apprunner.yaml. Use 1.0.
 version: 1.0
 
-# Define o ambiente de execução que o App Runner vai usar.
-# Corresponde ao 'FROM python:3.11-slim' do seu Dockerfile.
-runtime: python3.11
+# Nome correto do runtime gerenciado
+runtime: python311 # <‑‑ era python3.11
 
-# Comandos a serem executados durante a fase de construção (build).
 build:
   commands:
-    # Comandos de pré-compilação: aqui instalamos as dependências do sistema.
-    # Corresponde ao 'RUN apt-get update...' do seu Dockerfile.
+    # ainda pode instalar pacotes de sistema aqui
     pre-build:
       - apt-get update && apt-get install -y postgresql-client curl && rm -rf /var/lib/apt/lists/*
+    # ***Para Python 3.11 o App Runner recomenda instalar dependências
+    # no pre‑run, não no build, porque o processo de build revisto descarta
+    # tudo o que fica fora de /app.***
+    build: [] # vazio ou remova
 
-    # Comando principal de compilação: aqui instalamos as dependências Python.
-    # Corresponde ao 'pip install...' do seu Dockerfile.
-    build:
-      - pip install -r requirements.txt
-
-# Comandos para executar a aplicação após a construção.
 run:
-  # O comando que inicia o seu servidor web.
-  # Corresponde ao 'CMD ["uvicorn", ...]' do seu Dockerfile de produção.
+  # Opcional, mas útil para travar a versão menor/patch:
+  runtime-version: 3.11
+  pre-run:
+    - pip3 install --upgrade pip
+    - pip3 install -r requirements.txt
   command: uvicorn app.main:app --host 0.0.0.0 --port 8000
-
-  # A porta de rede que sua aplicação escuta.
-  # Deve ser a mesma porta do comando 'run'.
   network:
     port: 8000
-
-  # Variáveis de ambiente.
-  # É uma BOA PRÁTICA gerenciar segredos (como DATABASE_URL e SECRET_KEY)
-  # diretamente no console do App Runner, e não aqui.
-  # Mas você pode definir variáveis não-secretas aqui.
   variables:
     ALGORITHM: HS256
-    ACCESS_TOKEN_EXPIRE_MINUTES: "10080" # Valores devem ser strings
+    ACCESS_TOKEN_EXPIRE_MINUTES: "10080"
