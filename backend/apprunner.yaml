@@ -1,27 +1,41 @@
+# ======================================================================
+# AWS App Runner configuration file
+# ======================================================================
+
 version: 1.0
 
-# Nome correto do runtime gerenciado
-runtime: python311 # <‑‑ era python3.11
+# Runtime gerenciado pelo App Runner
+runtime: python311 # (equivale ao Python 3.11)
 
+# ----------------------------------------------------------------------
+# BUILD SECTION
+# ----------------------------------------------------------------------
 build:
+  # Dependências de sistema necessárias durante o build
   commands:
-    # ainda pode instalar pacotes de sistema aqui
     pre-build:
-      - apt-get update && apt-get install -y postgresql-client curl && rm -rf /var/lib/apt/lists/*
-    # ***Para Python 3.11 o App Runner recomenda instalar dependências
-    # no pre‑run, não no build, porque o processo de build revisto descarta
-    # tudo o que fica fora de /app.***
-    build: [] # vazio ou remova
+      - |
+        apt-get update \
+        && apt-get install -y postgresql-client curl \
+        && rm -rf /var/lib/apt/lists/*
 
+# ----------------------------------------------------------------------
+# RUN SECTION
+# ----------------------------------------------------------------------
 run:
-  # Opcional, mas útil para travar a versão menor/patch:
-  runtime-version: 3.11
+  # Garante que o container execute exatamente a versão 3.11․* do runtime
+  runtime-version: "3.11"
+
+  # Instala dependências Python imediatamente antes de subir o serviço
   pre-run:
-    - pip3 install --upgrade pip
-    - pip3 install -r requirements.txt
+    - pip install --upgrade pip
+    - pip install -r requirements.txt
+
+  # Comando que inicia a aplicação
   command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  # Porta exposta pelo serviço
   network:
     port: 8000
-  variables:
-    ALGORITHM: HS256
-    ACCESS_TOKEN_EXPIRE_MINUTES: "10080"
+
+  # (intencionalmente não há env nem secrets aqui — serão criados no console)
