@@ -1,41 +1,41 @@
-# ======================================================================
-# AWS App Runner configuration file
-# ======================================================================
+# ===============================================================
+# AWS App Runner configuration
+# ===============================================================
 
 version: 1.0
+runtime: python311           # (Python 3.11 gerenciado)
 
-# Runtime gerenciado pelo App Runner
-runtime: python311 # (equivale ao Python 3.11)
-
-# ----------------------------------------------------------------------
-# BUILD SECTION
-# ----------------------------------------------------------------------
+# ---------------------------------------------------------------
+# BUILD
+# ---------------------------------------------------------------
 build:
-  # Dependências de sistema necessárias durante o build
   commands:
+    # Pacotes de sistema necessários em runtime ou build
     pre-build:
       - |
-        apt-get update \
-        && apt-get install -y postgresql-client curl \
-        && rm -rf /var/lib/apt/lists/*
+        # Amazon Linux 2023 → dnf
+        dnf install -y postgresql15 curl
+        dnf clean all
+    # Passo de build “vazio” só para cumprir o schema
+    build:
+      - echo "Build layer complete"
 
-# ----------------------------------------------------------------------
-# RUN SECTION
-# ----------------------------------------------------------------------
+# ---------------------------------------------------------------
+# RUN
+# ---------------------------------------------------------------
 run:
-  # Garante que o container execute exatamente a versão 3.11․* do runtime
   runtime-version: "3.11"
 
-  # Instala dependências Python imediatamente antes de subir o serviço
+  # Instala dependências Python logo antes de iniciar a app
   pre-run:
     - pip install --upgrade pip
     - pip install -r requirements.txt
 
-  # Comando que inicia a aplicação
+  # Comando da aplicação FastAPI
   command: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
-  # Porta exposta pelo serviço
+  # Porta que o App Runner expõe
   network:
     port: 8000
 
-  # (intencionalmente não há env nem secrets aqui — serão criados no console)
+  # Deixe env / secrets para acrescentar via Console
