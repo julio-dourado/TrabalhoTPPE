@@ -3,7 +3,7 @@ version: 1.0
 
 # Define o ambiente de execução que o App Runner vai usar.
 # Corresponde ao 'FROM python:3.11-slim' do seu Dockerfile.
-runtime: python-3.11
+runtime: python3.11
 
 # Comandos a serem executados durante a fase de construção (build).
 build:
