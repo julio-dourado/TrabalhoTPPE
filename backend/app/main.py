@@ -1,50 +1,67 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.routes import users, auth, training, exercises
-from app.core.config import Settings
+from contextlib import asynccontextmanager
 
-settings = Settings()
+from .database import engine
+from .models import usuario, treino, exercicio
+from .routers import auth, usuarios, treinos, exercicios
 
+
+def create_tables():
+    """Cria as tabelas no banco de dados"""
+    usuario.Base.metadata.create_all(bind=engine)
+    treino.Base.metadata.create_all(bind=engine)
+    exercicio.Base.metadata.create_all(bind=engine)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Gerencia o ciclo de vida da aplicação"""
+    # Startup
+    create_tables()
+    
+    # Resolve forward references in schemas
+    try:
+        from .schemas import resolve_forward_references
+        resolve_forward_references()
+    except Exception:
+        pass  # Continue even if schema resolution fails
+    
+    yield
+    # Shutdown
+
+
+# Criar instância da aplicação FastAPI
 app = FastAPI(
-    title="Training API",
-    description="API for managing users and their training routines.",
+    title="API Crie Seu Treino",
+    description="API para gerenciar usuários, treinos e exercícios",
     version="1.0.0",
-    swagger_ui_parameters={"syntaxHighlight.theme": "obsidian"},
-    openapi_spec_args={
-        "components": {
-            "securitySchemes": {
-                "bearerAuth": {
-                    "type": "http",
-                    "scheme": "bearer",
-                    "bearerFormat": "JWT",
-                    "description": "Enter JWT token with 'Bearer ' prefix",
-                }
-            }
-        },
-        "security": [{"bearerAuth": []}],
-    },
+    lifespan=lifespan
 )
 
-# Add CORS middleware
+# Configurar CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=["http://localhost:3000"],  # Frontend Next.js
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["authentication"])
-app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
-app.include_router(exercises.router, prefix="/api/v1/exercises", tags=["exercises"])
-app.include_router(training.router, prefix="/api/v1/training", tags=["training"])
+# Incluir routers
+app.include_router(auth.router)
+app.include_router(usuarios.router)
+app.include_router(treinos.router)
+app.include_router(exercicios.router)
 
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to the Training API!"}
+    """Endpoint raiz"""
+    return {"message": "API Crie Seu Treino - Sistema de Gerenciamento de Treinos"}
+
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "version": "1.0.0"}
+    """Health check endpoint"""
+    return {"status": "healthy", "message": "API funcionando corretamente"} 
