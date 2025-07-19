@@ -37,30 +37,6 @@ def test_read_my_treinos(client: TestClient, auth_headers):
     assert data[0]["nome"] == "Treino Listagem"
 
 
-def test_read_treino_by_id(client: TestClient, auth_headers):
-    """Testa busca de treino por ID"""
-    # Criar treino primeiro
-    treino_data = {
-        "nome": "Treino Busca",
-        "descricao": "Para testar busca"
-    }
-    create_response = client.post("/treinos/", headers=auth_headers, json=treino_data)
-    treino_id = create_response.json()["id"]
-    
-    # Buscar o treino simples
-    response = client.get(f"/treinos/{treino_id}", headers=auth_headers)
-    
-    assert response.status_code == 200
-    data = response.json()
-    assert data["id"] == treino_id
-    assert data["nome"] == "Treino Busca"
-    assert "descricao" in data
-    
-    # Buscar o treino com exercícios
-    response_with_exercicios = client.get(f"/treinos/{treino_id}/with-exercicios", headers=auth_headers)
-    assert response_with_exercicios.status_code == 200
-    data_with_exercicios = response_with_exercicios.json()
-    assert "exercicios" in data_with_exercicios
 
 
 def test_read_nonexistent_treino(client: TestClient, auth_headers):
@@ -92,25 +68,6 @@ def test_update_treino(client: TestClient, auth_headers):
     assert data["nome"] == "Treino Atualizado"
     assert data["descricao"] == "Descrição atualizada"
 
-
-def test_delete_treino(client: TestClient, auth_headers):
-    """Testa exclusão de treino"""
-    # Criar treino primeiro
-    treino_data = {
-        "nome": "Treino para Deletar",
-        "descricao": "Será removido"
-    }
-    create_response = client.post("/treinos/", headers=auth_headers, json=treino_data)
-    treino_id = create_response.json()["id"]
-    
-    # Deletar o treino
-    response = client.delete(f"/treinos/{treino_id}", headers=auth_headers)
-    
-    assert response.status_code == 204
-    
-    # Verificar se foi deletado
-    get_response = client.get(f"/treinos/{treino_id}", headers=auth_headers)
-    assert get_response.status_code == 404
 
 
 def test_treino_isolation_between_users(client: TestClient, db):

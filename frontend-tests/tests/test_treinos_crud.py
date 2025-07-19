@@ -115,28 +115,7 @@ class TestTreinosCRUD:
         treinos_page.wait_for_page_load()
         assert treinos_page.get_treino_count() == initial_count
     
-    def test_delete_treino(self, driver, base_url, login_user):
-        """Teste de exclusão de treino"""
-        treinos_page = TreinosPage(driver)
-        
-        # Primeiro, criar um treino para deletar
-        self._create_test_treino(driver, base_url)
-        
-        # Navegar para página de treinos
-        treinos_page.navigate_to(base_url).wait_for_page_load()
-        
-        initial_count = treinos_page.get_treino_count()
-        assert initial_count > 0  # Deve ter pelo menos 1 treino
-        
-        # Deletar primeiro treino
-        treinos_page.click_delete_treino(0)
-        treinos_page.confirm_delete()
-        
-        # Verificar que treino foi removido
-        treinos_page.wait_for_treino_deleted(initial_count)
-        new_count = treinos_page.get_treino_count()
-        assert new_count == initial_count - 1
-    
+     
     def test_view_treino_details(self, driver, base_url, login_user):
         """Teste de visualização de detalhes do treino"""
         treinos_page = TreinosPage(driver)

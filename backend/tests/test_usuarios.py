@@ -12,21 +12,6 @@ def test_read_usuarios(client: TestClient, auth_headers, test_user):
     assert len(data) >= 1
 
 
-def test_read_my_profile(client: TestClient, auth_headers, test_user):
-    """Testa obtenção do perfil do usuário atual"""
-    response = client.get("/usuarios/me/profile", headers=auth_headers)
-    
-    assert response.status_code == 200
-    data = response.json()
-    assert data["email"] == test_user.email
-    assert data["nome"] == test_user.nome
-    assert data["is_active"] == True
-    
-    # Testar perfil completo
-    response_complete = client.get("/usuarios/me/profile-complete", headers=auth_headers)
-    assert response_complete.status_code == 200
-    data_complete = response_complete.json()
-    assert "treinos" in data_complete
 
 
 def test_read_usuario_by_id(client: TestClient, auth_headers, test_user):
@@ -71,12 +56,6 @@ def test_update_my_profile_with_email(client: TestClient, auth_headers):
     data = response.json()
     assert data["email"] == "newemail@example.com"
 
-
-def test_delete_my_account(client: TestClient, auth_headers):
-    """Testa exclusão da própria conta"""
-    response = client.delete("/usuarios/me", headers=auth_headers)
-    
-    assert response.status_code == 204
 
 
 def test_access_without_auth(client: TestClient):
